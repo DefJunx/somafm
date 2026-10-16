@@ -1,6 +1,6 @@
 # 03 Play a station: .pls -> Mirror -> native decode, PlayerState reducer, player screen
 
-Status: ready-for-human
+Status: resolved
 Blocked by: 02
 
 ## Goal
@@ -34,3 +34,4 @@ S3, S4. Shared Definition of Done in [§9 Testing & DoD](../spec.md#9-testing--t
 
 ## Comments
 - 2026-10-16: the quality picker, `set_quality` and AAC decode were removed from v1. SomaFM's `aac` streams are HE-AAC (MPEG-2 ADTS 0xFFF9, 22.05 kHz core) which symphonia cannot decode; see ADR 0001. v1 is MP3 only; smoke S5 is dropped.
+- User verified S3-S4 manually on 2026-10-16 (MP3 only). Resolved.
