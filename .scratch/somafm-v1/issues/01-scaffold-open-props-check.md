@@ -12,11 +12,11 @@ Create the Tauri 2 app skeleton from the create-tauri-app Svelte-TS template wit
 - [§9 Testing & DoD](../spec.md#9-testing--the-check-command) (check command, Vitest/mockIPC setup)
 
 ## Acceptance criteria
-- [ ] Project scaffolded with the create-tauri-app Svelte + TypeScript template (plain Vite, pnpm), bundle identifier `dev.defjunx.somafm`, Rust module skeleton (`feed`, `player`, `media_controls`, `tray`, `settings`, `commands`) and `src/lib/api.ts` with the TS types from spec §3.
-- [ ] Open Props installed and its tokens imported globally; a placeholder `Grid` and `Player` view exist and render.
-- [ ] `pnpm check` runs `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `svelte-check`, `vitest run` in order and passes clean; one trivial passing test each in Rust and Vitest (with `mockIPC` wired) proves the harness.
-- [ ] Original generic radio/waveform SVG icon committed and expanded with `pnpm tauri icon`, plus a monochrome tray icon; no SomaFM artwork or branding anywhere.
-- [ ] `pnpm tauri dev` opens a window on Linux.
+- [x] Project scaffolded with the create-tauri-app Svelte + TypeScript template (plain Vite, pnpm), bundle identifier `dev.defjunx.somafm`, Rust module skeleton (`feed`, `player`, `media_controls`, `tray`, `settings`, `commands`) and `src/lib/api.ts` with the TS types from spec §3.
+- [x] Open Props installed and its tokens imported globally; a placeholder `Grid` and `Player` view exist and render.
+- [x] `pnpm check` runs `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `svelte-check`, `vitest run` in order and passes clean; one trivial passing test each in Rust and Vitest (with `mockIPC` wired) proves the harness.
+- [x] Original generic radio/waveform SVG icon committed and expanded with `pnpm tauri icon`, plus a monochrome tray icon; no SomaFM artwork or branding anywhere.
+- [x] `pnpm tauri dev` opens a window on Linux.
 
 ## Smoke checklist
 None (no S-IDs owned). Shared Definition of Done in [§9 Testing & DoD](../spec.md#9-testing--the-check-command) applies.

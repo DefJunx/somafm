@@ -1,0 +1,31 @@
+{
+  "name": "somafm",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml",
+    "check:web": "svelte-check --tsconfig ./tsconfig.json && vitest run",
+    "check": "pnpm check:rust && pnpm check:web"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "open-props": "^1"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@tauri-apps/cli": "^2",
+    "@testing-library/svelte": "^5",
+    "@types/node": "^24",
+    "jsdom": "^27",
+    "svelte": "^5.56.3",
+    "svelte-check": "^4.6.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4"
+  }
+}
