@@ -12,6 +12,7 @@ use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
 use super::decode::{DecodeEnd, PcmSink, decode_stream, f32_to_bits};
+use super::icy::IcyReader;
 use super::pls::{pick_playlist, resolve_mirrors};
 use super::reducer::{Core, Effect, Event, reduce};
 use super::source::StreamSource;
@@ -162,7 +163,7 @@ impl Inner {
                 let volume = self.volume.clone();
                 let factory = self.sink_factory.clone();
                 std::thread::spawn(move || {
-                    let notify = |e: Event| this.dispatch(e);
+                    let notify = move |e: Event| this.dispatch(e);
                     match url {
                         Some(url) => {
                             stream_thread(&url, attempt, &cancel, &volume, factory, notify)
@@ -195,8 +196,8 @@ impl Inner {
 }
 
 enum Msg {
-    /// HTTP status, or `Err` when no response arrived.
-    Head(Result<u16, ()>),
+    /// HTTP status and `icy-metaint`, or `Err` when no response arrived.
+    Head(Result<(u16, Option<usize>), ()>),
     Data(Vec<u8>),
     End,
 }
@@ -210,7 +211,7 @@ fn spawn_pump(url: String) -> mpsc::Receiver<Msg> {
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(None) // live stream: no total timeout
             .build();
-        let resp = client.and_then(|c| c.get(&url).send());
+        let resp = client.and_then(|c| c.get(&url).header("Icy-MetaData", "1").send());
         let mut resp = match resp {
             Ok(r) => r,
             Err(_) => {
@@ -218,7 +219,15 @@ fn spawn_pump(url: String) -> mpsc::Receiver<Msg> {
                 return;
             }
         };
-        if tx.send(Msg::Head(Ok(resp.status().as_u16()))).is_err() {
+        let metaint = resp
+            .headers()
+            .get("icy-metaint")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse().ok());
+        if tx
+            .send(Msg::Head(Ok((resp.status().as_u16(), metaint))))
+            .is_err()
+        {
             return;
         }
         let mut buf = [0u8; 8192];
@@ -290,8 +299,9 @@ fn stream_thread(
     cancel: &Arc<AtomicBool>,
     volume: &AtomicU32,
     factory: SinkFactory,
-    notify: impl Fn(Event),
+    notify: impl Fn(Event) + Send + Sync + 'static,
 ) {
+    let notify = Arc::new(notify);
     let connect_failed = |kind| {
         if !cancel.load(Ordering::Relaxed) {
             notify(Event::ConnectFailed { attempt, kind });
@@ -303,19 +313,28 @@ fn stream_thread(
         pending: Vec::new(),
         pos: 0,
     };
-    match reader.next() {
-        Ok(Some(Msg::Head(Ok(status)))) if (200..300).contains(&status) => {}
+    let metaint = match reader.next() {
+        Ok(Some(Msg::Head(Ok((status, metaint))))) if (200..300).contains(&status) => metaint,
         Ok(Some(Msg::Head(Ok(_)))) => return connect_failed(ErrorKind::Unavailable),
         Ok(Some(Msg::Head(Err(())))) => return connect_failed(ErrorKind::Offline),
         Ok(_) => return connect_failed(ErrorKind::Unavailable),
         Err(_) => return, // cancelled
-    }
+    };
+    // ICY stripping sits between the network reader and symphonia, so the
+    // decoder (and its pre-audio budget) only ever sees audio bytes.
+    let on_title = {
+        let notify = notify.clone();
+        move |raw| notify(Event::TitleChanged { attempt, raw })
+    };
     let end = decode_stream(
-        StreamSource::new(reader),
+        StreamSource::new(IcyReader::new(reader, metaint, on_title)),
         move || factory(),
         volume,
         cancel,
-        || notify(Event::Connected { attempt }),
+        {
+            let notify = notify.clone();
+            move || notify(Event::Connected { attempt })
+        },
     );
     if cancel.load(Ordering::Relaxed) {
         return;
@@ -622,10 +641,84 @@ mod tests {
         let k = counts.clone();
         let factory: SinkFactory =
             Arc::new(move || Ok(Box::new(NullSink(k.clone())) as Box<dyn PcmSink>));
-        stream_thread(&url, 1, &cancel, &AtomicU32::new(0), factory, |e| {
-            eprintln!("event: {e:?} samples={}", counts.samples.lock().unwrap())
+        let k2 = counts.clone();
+        stream_thread(&url, 1, &cancel, &AtomicU32::new(0), factory, move |e| {
+            eprintln!("event: {e:?} samples={}", k2.samples.lock().unwrap())
         });
         eprintln!("samples={}", counts.samples.lock().unwrap());
+    }
+
+    /// One-shot raw HTTP server: asserts on the request, replies with `headers`
+    /// (extra response header lines) and `body`, then closes.
+    fn raw_server(headers: &'static str, body: Vec<u8>, want_icy_header: bool) -> String {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/s", l.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let (mut sock, _) = l.accept().unwrap();
+            let mut req = Vec::new();
+            let mut b = [0u8; 1024];
+            while !req.windows(4).any(|w| w == b"\r\n\r\n") {
+                let n = std::io::Read::read(&mut sock, &mut b).unwrap();
+                req.extend_from_slice(&b[..n]);
+            }
+            let req = String::from_utf8_lossy(&req).to_lowercase();
+            assert_eq!(req.contains("icy-metadata: 1"), want_icy_header);
+            let head = format!("HTTP/1.0 200 OK\r\n{headers}\r\n");
+            let _ = std::io::Write::write_all(&mut sock, head.as_bytes());
+            let _ = std::io::Write::write_all(&mut sock, &body);
+        });
+        url
+    }
+
+    /// Runs `stream_thread` to stream end; returns events and decoded sample count.
+    fn run_stream(url: &str) -> (Vec<Event>, usize) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let e2 = events.clone();
+        let counts = Counts::default();
+        let c = counts.clone();
+        let factory: SinkFactory =
+            Arc::new(move || Ok(Box::new(NullSink(c.clone())) as Box<dyn PcmSink>));
+        stream_thread(
+            url,
+            1,
+            &Arc::new(AtomicBool::new(false)),
+            &AtomicU32::new(0),
+            factory,
+            move |e| e2.lock().unwrap().push(e),
+        );
+        let samples = *counts.samples.lock().unwrap();
+        let events = events.lock().unwrap().clone();
+        (events, samples)
+    }
+
+    #[test]
+    fn icy_framed_stream_decodes_and_reports_titles() {
+        let titles = ["Artist One - Song A", "Plain title"];
+        let framed = crate::player::icy::tests::frame(MP3, 2048, &titles);
+        let url = raw_server("icy-metaint: 2048\r\n", framed, true);
+        let (events, samples) = run_stream(&url);
+        assert!(samples > 0, "decode must still yield PCM: {events:?}");
+        let got: Vec<_> = events
+            .iter()
+            .filter_map(|e| match e {
+                Event::TitleChanged { attempt: 1, raw } => Some(raw.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(got, titles);
+        assert!(events.contains(&Event::Connected { attempt: 1 }));
+    }
+
+    #[test]
+    fn stream_without_icy_header_is_untouched() {
+        let url = raw_server("", MP3.to_vec(), true);
+        let (events, samples) = run_stream(&url);
+        assert!(samples > 0);
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, Event::TitleChanged { .. }))
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

@@ -211,3 +211,28 @@ it("bottom bar keeps an enabled Stop while connecting", async () => {
   await fireEvent.click(stop);
   expect(calls).toContainEqual(["stop", {}]);
 });
+
+const np = (artist: string | null, title: string) => ({ raw: artist ? `${artist} - ${title}` : title, artist, title });
+
+it("bottom bar shows artist - title, station name as artist when none, and clears", async () => {
+  ipc({ player: ps({ stationId: "a", status: { kind: "playing" }, nowPlaying: np("X", "Y") }) });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  const bar = await screen.findByRole("complementary", { name: "Now playing" });
+  expect(bar.textContent).toContain("X - Y");
+  await emit("player-state", ps({ stationId: "a", status: { kind: "playing" }, nowPlaying: np(null, "Solo") }));
+  await waitFor(() => expect(bar.textContent).toContain("Station a - Solo"));
+  await emit("player-state", ps({ stationId: "a", status: { kind: "stopped" }, nowPlaying: null }));
+  await waitFor(() => expect(bar.textContent).toContain("Paused"));
+  expect(bar.textContent).not.toContain("Solo");
+});
+
+it("Player screen shows both now-playing shapes and clears it", async () => {
+  const store = await renderPlayer(ps({ stationId: "a", status: { kind: "playing" }, nowPlaying: np("X", "Y") }));
+  expect(screen.getByText("X - Y")).toBeTruthy();
+  await emit("player-state", ps({ stationId: "a", status: { kind: "playing" }, nowPlaying: np(null, "Solo") }));
+  await waitFor(() => expect(screen.getByText("Station a - Solo")).toBeTruthy());
+  await emit("player-state", ps({ stationId: "a", status: { kind: "stopped" }, nowPlaying: null }));
+  await waitFor(() => expect(screen.queryByText("Station a - Solo")).toBeNull());
+  expect(document.querySelector(".now")?.textContent).toBe("");
+  expect(store.state.nowPlaying).toBeNull();
+});

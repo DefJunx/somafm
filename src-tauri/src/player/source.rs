@@ -1,5 +1,5 @@
 //! Adapter turning a blocking byte stream (the HTTP response body) into a
-//! symphonia `MediaSource`. ICY metadata stripping lands here in slice 04.
+//! symphonia `MediaSource`. ICY metadata stripping (`icy.rs`) sits upstream of this.
 
 use std::io::{self, Read, Seek, SeekFrom};
 use std::sync::Mutex;

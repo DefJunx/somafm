@@ -2,6 +2,7 @@
 //! (`.pls` -> Mirror -> HTTP stream -> symphonia decode -> rodio output).
 
 pub mod decode;
+pub mod icy;
 pub mod pls;
 pub mod reducer;
 pub mod shell;

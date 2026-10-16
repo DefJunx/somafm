@@ -65,6 +65,11 @@ pub enum Event {
     StreamDropped {
         attempt: u64,
     },
+    /// A raw ICY `StreamTitle` arrived on the stream.
+    TitleChanged {
+        attempt: u64,
+        raw: String,
+    },
     SetVolume(f32),
 }
 
@@ -113,7 +118,8 @@ fn event_gen(e: &Event) -> Option<u64> {
         | Event::Connected { attempt }
         | Event::ConnectFailed { attempt, .. }
         | Event::DecodeFailed { attempt }
-        | Event::StreamDropped { attempt } => Some(*attempt),
+        | Event::StreamDropped { attempt }
+        | Event::TitleChanged { attempt, .. } => Some(*attempt),
         _ => None,
     }
 }
@@ -199,6 +205,13 @@ pub fn reduce(mut core: Core, event: Event, _now: Instant) -> (Core, Vec<Effect>
         // Minimal ending until reconnect lands in slice 05.
         Event::StreamDropped { .. } if core.phase == Phase::Live => {
             fail(&mut core, ErrorKind::Unavailable, &mut fx);
+        }
+        Event::TitleChanged { raw, .. }
+            if matches!(core.phase, Phase::Trying { .. } | Phase::Live) =>
+        {
+            if let Some(np) = super::icy::now_playing(&raw) {
+                core.state.now_playing = Some(np);
+            }
         }
         Event::SetVolume(v) if v.is_finite() => {
             core.state.volume = v.clamp(0.0, 1.0);
@@ -491,6 +504,64 @@ mod tests {
         let (other, _) = reduce(c, play("b"), now());
         assert!(other.state.now_playing.is_none());
         assert_eq!(other.state.station_id.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn title_changed_sets_now_playing_once() {
+        let title = |raw: &str| Event::TitleChanged {
+            attempt: 1,
+            raw: raw.into(),
+        };
+        let (c, fx) = reduce(live(), title("A - B"), now());
+        let np = c.state.now_playing.clone().unwrap();
+        assert_eq!((np.artist.as_deref(), np.title.as_str()), (Some("A"), "B"));
+        assert_eq!(fx, vec![Effect::EmitSnapshot]);
+        // Same title again: no snapshot.
+        let (c2, fx) = reduce(c.clone(), title("A - B"), now());
+        assert_eq!(c2, c);
+        assert!(fx.is_empty());
+        // Empty title: no change.
+        let (c3, fx) = reduce(c.clone(), title("  "), now());
+        assert_eq!(c3, c);
+        assert!(fx.is_empty());
+        // New title replaces it.
+        let (c4, fx) = reduce(c, title("Just text"), now());
+        assert_eq!(c4.state.now_playing.unwrap().artist, None);
+        assert_eq!(fx, vec![Effect::EmitSnapshot]);
+    }
+
+    #[test]
+    fn stale_or_idle_title_is_ignored() {
+        let stale = Event::TitleChanged {
+            attempt: 9,
+            raw: "A - B".into(),
+        };
+        let (c, fx) = reduce(live(), stale, now());
+        assert_eq!(c, live());
+        assert!(fx.is_empty());
+        let stopped = reduce(live(), Event::StopRequested, now()).0;
+        let late = Event::TitleChanged {
+            attempt: stopped.attempt,
+            raw: "A - B".into(),
+        };
+        let (c, fx) = reduce(stopped.clone(), late, now());
+        assert_eq!(c, stopped);
+        assert!(fx.is_empty());
+    }
+
+    #[test]
+    fn now_playing_survives_stream_error_but_not_station_change() {
+        let (c, _) = run(
+            live(),
+            vec![
+                Event::TitleChanged {
+                    attempt: 1,
+                    raw: "A - B".into(),
+                },
+                Event::StreamDropped { attempt: 1 },
+            ],
+        );
+        assert!(c.state.now_playing.is_some());
     }
 
     #[test]
