@@ -1,3 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+
 export type Quality = "mp3" | "aac128";
 export type ErrorKind = "offline" | "unavailable" | "unsupported";
 export type Status =
@@ -22,3 +25,8 @@ export interface Station {
   image: string; largeImage: string; xlImage: string; // feed image/largeimage/xlimage URLs
 }
 export interface StationsSnapshot { stations: Station[]; loaded: boolean } // loaded=false: no cache and no successful fetch yet
+
+export const getStations = () => invoke<StationsSnapshot>("get_stations");
+export const refreshStations = () => invoke<StationsSnapshot>("refresh_stations");
+export const onStationsUpdated = (cb: (s: StationsSnapshot) => void): Promise<UnlistenFn> =>
+  listen<StationsSnapshot>("stations-updated", (e) => cb(e.payload));
