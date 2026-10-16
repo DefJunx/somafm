@@ -7,7 +7,7 @@ pub mod reducer;
 pub mod shell;
 pub mod source;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 pub use shell::{Player, SinkFactory};
 
@@ -19,7 +19,6 @@ pub struct PlayerState {
     pub station_id: Option<String>,
     pub status: Status,
     pub volume: f32,
-    pub quality: Quality,
     pub now_playing: Option<NowPlaying>,
 }
 
@@ -29,7 +28,6 @@ impl Default for PlayerState {
             station_id: None,
             status: Status::Stopped,
             volume: DEFAULT_VOLUME,
-            quality: Quality::Mp3,
             now_playing: None,
         }
     }
@@ -68,23 +66,6 @@ impl ErrorKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum Quality {
-    Mp3,
-    Aac128,
-}
-
-impl Quality {
-    /// Feed playlist `format` for this quality (spec 5.2).
-    pub fn feed_format(self) -> &'static str {
-        match self {
-            Quality::Mp3 => "mp3",
-            Quality::Aac128 => "aac",
-        }
-    }
-}
-
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct NowPlaying {
     pub raw: String,
@@ -104,12 +85,11 @@ mod tests {
             error_kind: ErrorKind::Offline,
             message: "x".into(),
         };
-        s.quality = Quality::Aac128;
         let v = serde_json::to_value(&s).unwrap();
         assert_eq!(v["stationId"], "groovesalad");
         assert_eq!(v["status"]["kind"], "error");
         assert_eq!(v["status"]["errorKind"], "offline");
-        assert_eq!(v["quality"], "aac128");
+        assert!(v.get("quality").is_none());
         assert!((v["volume"].as_f64().unwrap() - 0.8).abs() < 1e-6);
         assert!(v["nowPlaying"].is_null());
         let c = serde_json::to_value(Status::Connecting {

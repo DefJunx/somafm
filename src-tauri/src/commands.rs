@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::feed::{Feed, StationsSnapshot};
-use crate::player::{Player, PlayerState, Quality};
+use crate::player::{Player, PlayerState};
 
 pub const STATIONS_UPDATED: &str = "stations-updated";
 pub const PLAYER_STATE: &str = "player-state";
@@ -47,9 +47,4 @@ pub fn stop(player: State<'_, Player>) {
 #[tauri::command]
 pub fn set_volume(player: State<'_, Player>, volume: f32) {
     player.set_volume(volume);
-}
-
-#[tauri::command]
-pub fn set_quality(player: State<'_, Player>, quality: Quality) {
-    player.set_quality(quality);
 }

@@ -3,7 +3,7 @@
 
 use std::time::Instant;
 
-use super::{ErrorKind, PlayerState, Quality, Status};
+use super::{ErrorKind, PlayerState, Status};
 
 /// Public state plus the bookkeeping the reducer needs. `attempt` identifies the
 /// current connection attempt; events from older attempts are ignored.
@@ -66,7 +66,6 @@ pub enum Event {
         attempt: u64,
     },
     SetVolume(f32),
-    SetQuality(Quality),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -74,7 +73,6 @@ pub enum Effect {
     Resolve {
         attempt: u64,
         station_id: String,
-        quality: Quality,
     },
     ConnectMirror {
         attempt: u64,
@@ -105,7 +103,6 @@ fn start(core: &mut Core, fx: &mut Vec<Effect>) {
     fx.push(Effect::Resolve {
         attempt: core.attempt,
         station_id: core.state.station_id.clone().unwrap_or_default(),
-        quality: core.state.quality,
     });
 }
 
@@ -207,17 +204,6 @@ pub fn reduce(mut core: Core, event: Event, _now: Instant) -> (Core, Vec<Effect>
             core.state.volume = v.clamp(0.0, 1.0);
             fx.push(Effect::ApplyVolume(core.state.volume));
         }
-        Event::SetQuality(q) if q != core.state.quality => {
-            core.state.quality = q;
-            if core.state.station_id.is_some()
-                && matches!(
-                    core.state.status,
-                    Status::Connecting { .. } | Status::Playing
-                )
-            {
-                start(&mut core, &mut fx);
-            }
-        }
         _ => {}
     }
 
@@ -300,7 +286,6 @@ mod tests {
                 Effect::Resolve {
                     attempt: 1,
                     station_id: "a".into(),
-                    quality: Quality::Mp3
                 },
                 Effect::EmitSnapshot
             ]
@@ -528,52 +513,6 @@ mod tests {
     }
 
     #[test]
-    fn quality_change_while_playing_reconnects() {
-        let (c, fx) = reduce(live(), Event::SetQuality(Quality::Aac128), now());
-        assert_eq!(c.state.quality, Quality::Aac128);
-        assert_eq!(
-            c.state.status,
-            Status::Connecting {
-                reconnecting: false
-            }
-        );
-        assert_eq!(c.attempt, 2);
-        assert_eq!(
-            fx,
-            vec![
-                Effect::Disconnect,
-                Effect::Resolve {
-                    attempt: 2,
-                    station_id: "a".into(),
-                    quality: Quality::Aac128
-                },
-                Effect::EmitSnapshot
-            ]
-        );
-    }
-
-    #[test]
-    fn quality_change_while_stopped_or_errored_only_stores_it() {
-        let stopped = reduce(live(), Event::StopRequested, now()).0;
-        let errored = reduce(
-            trying(1),
-            Event::ConnectFailed {
-                attempt: 1,
-                kind: Offline,
-            },
-            now(),
-        )
-        .0;
-        for c in [fresh(), stopped, errored] {
-            let attempt = c.attempt;
-            let (c, fx) = reduce(c, Event::SetQuality(Quality::Aac128), now());
-            assert_eq!(c.state.quality, Quality::Aac128);
-            assert_eq!(c.attempt, attempt);
-            assert_eq!(fx, vec![Effect::EmitSnapshot]);
-        }
-    }
-
-    #[test]
     fn play_after_error_reruns_first_connect() {
         let errored = reduce(
             trying(1),
@@ -617,8 +556,8 @@ mod tests {
     }
 
     #[test]
-    fn old_attempt_events_after_stop_or_quality_switch_change_nothing() {
-        let switched = reduce(live(), Event::SetQuality(Quality::Aac128), now()).0;
+    fn old_attempt_events_after_stop_or_restart_change_nothing() {
+        let switched = reduce(live(), play("a"), now()).0;
         let stopped = reduce(live(), Event::StopRequested, now()).0;
         for core in [switched, stopped] {
             for e in [

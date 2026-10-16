@@ -15,7 +15,7 @@ use super::decode::{DecodeEnd, PcmSink, decode_stream, f32_to_bits};
 use super::pls::{pick_playlist, resolve_mirrors};
 use super::reducer::{Core, Effect, Event, reduce};
 use super::source::StreamSource;
-use super::{ErrorKind, PlayerState, Quality};
+use super::{ErrorKind, PlayerState};
 use crate::feed::Feed;
 
 /// Creates the audio sink on the decode thread (cpal streams may not be `Send`).
@@ -105,10 +105,6 @@ impl Player {
     pub fn set_volume(&self, volume: f32) {
         self.inner.dispatch(Event::SetVolume(volume));
     }
-
-    pub fn set_quality(&self, quality: Quality) {
-        self.inner.dispatch(Event::SetQuality(quality));
-    }
 }
 
 impl Inner {
@@ -140,11 +136,10 @@ impl Inner {
             Effect::Resolve {
                 attempt,
                 station_id,
-                quality,
             } => {
                 let this = self.clone();
                 let handle = self.rt.spawn(async move {
-                    let event = match this.resolve(attempt, &station_id, quality).await {
+                    let event = match this.resolve(attempt, &station_id).await {
                         Ok(count) => Event::MirrorsResolved { attempt, count },
                         Err(kind) => Event::ResolveFailed { attempt, kind },
                     };
@@ -182,25 +177,14 @@ impl Inner {
         }
     }
 
-    async fn resolve(
-        &self,
-        attempt: u64,
-        station_id: &str,
-        quality: Quality,
-    ) -> Result<usize, ErrorKind> {
+    async fn resolve(&self, attempt: u64, station_id: &str) -> Result<usize, ErrorKind> {
         let station = self
             .feed
             .station(station_id)
             .ok_or(ErrorKind::Unavailable)?;
-        let playlist = pick_playlist(&station.playlists, quality).ok_or(ErrorKind::Unavailable)?;
-        let mirrors = resolve_mirrors(
-            &self.http,
-            &playlist.url,
-            &self.cache_dir,
-            station_id,
-            quality,
-        )
-        .await?;
+        let playlist = pick_playlist(&station.playlists).ok_or(ErrorKind::Unavailable)?;
+        let mirrors =
+            resolve_mirrors(&self.http, &playlist.url, &self.cache_dir, station_id).await?;
         let count = mirrors.len();
         *self.mirrors.lock().unwrap() = ResolvedMirrors {
             attempt,
@@ -347,7 +331,7 @@ fn stream_thread(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::player::decode::tests::{AAC, Counts, MP3, NullSink, mpeg2_adts};
+    use crate::player::decode::tests::{Counts, MP3, NullSink};
     use crate::player::{Status, pls::resolve_mirrors};
     use std::collections::HashMap;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -419,17 +403,11 @@ mod tests {
 
     /// Routes for a feed with one station "s1" whose `.pls` files list the given
     /// stream paths, plus the stream bodies themselves.
-    fn station_routes(
-        base: &str,
-        mp3_mirrors: &[&str],
-        aac_mirrors: &[&str],
-        streams: &[(&str, u16, &[u8])],
-    ) -> Routes {
+    fn station_routes(base: &str, mp3_mirrors: &[&str], streams: &[(&str, u16, &[u8])]) -> Routes {
         let channels = serde_json::json!({"channels": [{
         "id": "s1", "title": "S1", "genre": "ambient", "listeners": "3",
         "playlists": [
             {"url": format!("{base}/mp3.pls"), "format": "mp3", "quality": "highest"},
-            {"url": format!("{base}/aac.pls"), "format": "aac", "quality": "highest"},
         ]}]});
         let mut r = routes(streams);
         let urls = |m: &[&str]| pls(&m.iter().map(|p| format!("{base}{p}")).collect::<Vec<_>>());
@@ -438,7 +416,6 @@ mod tests {
             (200, channels.to_string().into_bytes()),
         );
         r.insert("/mp3.pls".into(), (200, urls(mp3_mirrors)));
-        r.insert("/aac.pls".into(), (200, urls(aac_mirrors)));
         r
     }
 
@@ -454,7 +431,7 @@ mod tests {
             )])
         })
         .await;
-        let got = resolve_mirrors(&client, &ok.url("/s.pls"), dir.path(), "s1", Quality::Mp3).await;
+        let got = resolve_mirrors(&client, &ok.url("/s.pls"), dir.path(), "s1").await;
         assert_eq!(
             got,
             Ok(vec!["http://a/1".to_string(), "http://b/2".to_string()])
@@ -462,48 +439,16 @@ mod tests {
 
         // Server error: the cached list is used.
         let broken = Stub::start(|_| routes(&[("/s.pls", 500, b"")])).await;
-        let again = resolve_mirrors(
-            &client,
-            &broken.url("/s.pls"),
-            dir.path(),
-            "s1",
-            Quality::Mp3,
-        )
-        .await;
+        let again = resolve_mirrors(&client, &broken.url("/s.pls"), dir.path(), "s1").await;
         assert_eq!(again, got);
-
-        // The other quality has its own (empty) cache.
-        let aac = resolve_mirrors(
-            &client,
-            &broken.url("/s.pls"),
-            dir.path(),
-            "s1",
-            Quality::Aac128,
-        )
-        .await;
-        assert_eq!(aac, Err(ErrorKind::Unavailable));
 
         // Empty .pls with no cache.
         let empty = Stub::start(|_| routes(&[("/s.pls", 200, b"nothing here")])).await;
-        let r = resolve_mirrors(
-            &client,
-            &empty.url("/s.pls"),
-            dir.path(),
-            "other",
-            Quality::Mp3,
-        )
-        .await;
+        let r = resolve_mirrors(&client, &empty.url("/s.pls"), dir.path(), "other").await;
         assert_eq!(r, Err(ErrorKind::Unavailable));
 
         // Nothing listening and no cache: offline.
-        let r = resolve_mirrors(
-            &client,
-            "http://127.0.0.1:1/s.pls",
-            dir.path(),
-            "other",
-            Quality::Mp3,
-        )
-        .await;
+        let r = resolve_mirrors(&client, "http://127.0.0.1:1/s.pls", dir.path(), "other").await;
         assert_eq!(r, Err(ErrorKind::Offline));
     }
 
@@ -551,13 +496,12 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn plays_mp3_through_second_mirror_then_switches_to_aac() {
+    async fn plays_mp3_through_second_mirror_then_stops() {
         let stub = Stub::start(|base| {
             station_routes(
                 base,
                 &["/dead", "/mp3"],
-                &["/aac"],
-                &[("/mp3", 200, MP3), ("/aac", 200, AAC), ("/dead", 404, b"")],
+                &[("/mp3", 200, MP3), ("/dead", 404, b"")],
             )
         })
         .await;
@@ -574,14 +518,6 @@ mod tests {
             }
         );
 
-        // Switching quality reconnects on AAC and plays.
-        let from = rig.snaps.lock().unwrap().len();
-        rig.player.set_quality(Quality::Aac128);
-        wait_for(&rig, from, |s| {
-            s.quality == Quality::Aac128 && is_playing(s)
-        })
-        .await;
-
         rig.player.set_volume(0.25);
         assert_eq!(rig.player.state().volume, 0.25);
         rig.player.stop();
@@ -592,10 +528,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn all_mirrors_dead_ends_in_unavailable() {
-        let stub = Stub::start(|base| {
-            station_routes(base, &["/dead", "/dead"], &[], &[("/dead", 404, b"")])
-        })
-        .await;
+        let stub =
+            Stub::start(|base| station_routes(base, &["/dead", "/dead"], &[("/dead", 404, b"")]))
+                .await;
         let rig = rig(&stub).await;
         rig.player.play("s1").unwrap();
         wait_for(&rig, 0, |s| {
@@ -613,7 +548,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn undecodable_stream_is_unsupported() {
         let stub = Stub::start(|base| {
-            station_routes(base, &["/junk"], &[], &[("/junk", 200, &[0x42u8; 20000])])
+            station_routes(base, &["/junk"], &[("/junk", 200, &[0x42u8; 20000])])
         })
         .await;
         let rig = rig(&stub).await;
@@ -694,14 +629,11 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn unrecognised_aac_stream_larger_than_the_probe_budget_is_unsupported() {
-        // ADTS with the MPEG-2 sync (0xFFF9), repeated past the pre-audio budget.
-        let one = mpeg2_adts(AAC);
-        let body: Vec<u8> = one.iter().copied().cycle().take(300 * 1024).collect();
+    async fn unrecognised_stream_larger_than_the_probe_budget_is_unsupported() {
+        let body = vec![0x42u8; 300 * 1024];
         let stub =
-            Stub::start(|base| station_routes(base, &[], &["/aac"], &[("/aac", 200, &body)])).await;
+            Stub::start(|base| station_routes(base, &["/junk"], &[("/junk", 200, &body)])).await;
         let rig = rig(&stub).await;
-        rig.player.set_quality(Quality::Aac128);
         rig.player.play("s1").unwrap();
         wait_for(&rig, 0, |s| {
             matches!(

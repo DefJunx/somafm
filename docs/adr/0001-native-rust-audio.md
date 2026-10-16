@@ -4,5 +4,9 @@ Playback runs in the Tauri Rust backend (`reqwest` stream → `symphonia` decode
 
 ## Consequences
 
-- Symphonia decodes AAC-LC but not HE-AAC, so SomaFM's `aacp` (64k/32k) streams are not offered. The only stream qualities are MP3 and AAC 128. Restoring HE-AAC would mean an FFmpeg binding or `xaac-rs`.
+- Symphonia decodes AAC-LC but not HE-AAC, so SomaFM's `aacp` (64k/32k) streams are not offered. Restoring HE-AAC would mean an FFmpeg binding or `xaac-rs`.
 - We own a small adapter that turns an HTTP byte stream into a symphonia `MediaSource`. The adapter also strips ICY metadata out of the audio bytes.
+
+## Update 2026-10-16: MP3 only
+
+SomaFM's "aac" 128k streams turned out to use MPEG-2 ADTS (sync `0xFFF9`) at a 22.05 kHz core, i.e. very likely HE-AAC with implicit SBR, which symphonia cannot decode (its ADTS reader does not even recognise `0xFFF9`). v1 is therefore MP3 only, with no stream quality choice. Restoring AAC needs the FFmpeg / `xaac-rs` route.

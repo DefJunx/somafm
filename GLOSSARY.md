@@ -12,8 +12,6 @@
 
 **Now playing**: The track currently broadcast on a Station.
 
-**Stream quality**: The selectable bitrate/format variant of a Station's stream.
-
 **Favourite**: A Station the user has starred for quick access.
 
 **Mirror**: One of a Station's interchangeable stream servers listed in its playlist; if one fails, another can be tried.

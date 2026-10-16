@@ -179,7 +179,7 @@ it("Player screen status line and main button per status", async () => {
   expect(store.state.status.kind).toBe("error");
 });
 
-it("Player screen: Play/Retry plays, volume slider, mute, quality and Back", async () => {
+it("Player screen: Play/Retry plays, volume slider, mute and Back", async () => {
   const calls: Call[] = [];
   let backed = 0;
   await renderPlayer(ps({ stationId: "a", volume: 0.6 }), calls, () => backed++);
@@ -196,8 +196,7 @@ it("Player screen: Play/Retry plays, volume slider, mute, quality and Back", asy
   await fireEvent.click(await screen.findByRole("button", { name: "Unmute" }));
   expect(calls.filter(([c]) => c === "set_volume").at(-1)).toEqual(["set_volume", { volume: 0.6 }]);
 
-  await fireEvent.change(screen.getByLabelText("Quality"), { target: { value: "aac128" } });
-  expect(calls).toContainEqual(["set_quality", { quality: "aac128" }]);
+  expect(screen.queryByLabelText("Quality")).toBeNull();
 
   await fireEvent.click(screen.getByRole("button", { name: "Back" }));
   expect(backed).toBe(1);

@@ -37,7 +37,7 @@ pub fn f32_to_bits(v: f32) -> u32 {
 }
 
 /// Bytes allowed before the first decoded packet. A format symphonia cannot
-/// recognise (e.g. ADTS with the MPEG-2 `0xFFF9` sync, used by SomaFM's HE-AAC
+/// recognise (e.g. ADTS with the MPEG-2 `0xFFF9` sync, as in SomaFM's HE-AAC
 /// "aac" streams) makes the probe scan an endless live stream forever.
 pub const PRE_AUDIO_BUDGET: usize = 128 * 1024;
 
@@ -252,7 +252,6 @@ pub(crate) mod tests {
     use std::sync::{Arc, Mutex};
 
     pub const MP3: &[u8] = include_bytes!("../../tests/fixtures/tone.mp3");
-    pub const AAC: &[u8] = include_bytes!("../../tests/fixtures/tone.aac");
 
     #[derive(Default, Clone)]
     pub struct Counts {
@@ -293,8 +292,8 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn mp3_and_aac_fixtures_yield_pcm() {
-        for (name, bytes) in [("mp3", MP3), ("aac", AAC)] {
+    fn mp3_fixture_yields_pcm() {
+        for (name, bytes) in [("mp3", MP3)] {
             let counts = Counts::default();
             let (end, firsts) = run(bytes, &counts);
             assert_eq!(end, DecodeEnd::Io { after_audio: true }, "{name}");
@@ -351,21 +350,6 @@ pub(crate) mod tests {
         assert_eq!(end, DecodeEnd::Io { after_audio: false });
     }
 
-    /// Rewrites every ADTS header's ID bit (0xFFF1 -> 0xFFF9, MPEG-2 style), which
-    /// symphonia's ADTS reader does not recognise.
-    pub fn mpeg2_adts(src: &[u8]) -> Vec<u8> {
-        let mut out = src.to_vec();
-        let mut i = 0;
-        while i + 7 <= out.len() && out[i] == 0xff && out[i + 1] & 0xf0 == 0xf0 {
-            let len = ((out[i + 3] as usize & 0x03) << 11)
-                | ((out[i + 4] as usize) << 3)
-                | (out[i + 5] as usize >> 5);
-            out[i + 1] |= 0x08;
-            i += len.max(7);
-        }
-        out
-    }
-
     /// Endless repetition of `data`, like a live stream.
     struct Endless(Vec<u8>, usize);
     impl Read for Endless {
@@ -380,12 +364,11 @@ pub(crate) mod tests {
 
     #[test]
     fn unrecognised_endless_stream_ends_unsupported_instead_of_hanging() {
-        let patched = mpeg2_adts(AAC);
-        assert_eq!(patched[1], 0xf9);
+        let junk = vec![0x42u8; 4096];
         let counts = Counts::default();
         let c = counts.clone();
         let end = decode_stream(
-            StreamSource::new(Endless(patched, 0)),
+            StreamSource::new(Endless(junk, 0)),
             move || Ok(Box::new(NullSink(c)) as Box<dyn PcmSink>),
             &AtomicU32::new(0),
             &AtomicBool::new(false),

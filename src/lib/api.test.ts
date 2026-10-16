@@ -10,7 +10,6 @@ it("round-trips get_player_state through mockIPC", async () => {
     stationId: null,
     status: { kind: "stopped" },
     volume: 0.8,
-    quality: "mp3",
     nowPlaying: null,
   };
   mockIPC((cmd) => (cmd === "get_player_state" ? state : undefined));

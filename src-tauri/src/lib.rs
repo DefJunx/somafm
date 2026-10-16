@@ -29,8 +29,7 @@ pub fn run() {
             commands::get_player_state,
             commands::play,
             commands::stop,
-            commands::set_volume,
-            commands::set_quality
+            commands::set_volume
         ])
         .setup(|app| {
             let cache_dir = app.path().app_cache_dir()?;

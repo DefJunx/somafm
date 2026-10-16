@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Quality } from "../lib/api";
   import { nowPlayingText, playerStore, primaryAction, runPrimaryAction, statusText } from "../lib/player.svelte";
   import { stationsStore } from "../lib/stations.svelte";
 
@@ -63,13 +62,6 @@
           oninput={(e) => player.setVolume(e.currentTarget.valueAsNumber)}
         />
       </div>
-      <label class="quality">
-        Quality
-        <select value={s.quality} onchange={(e) => player.setQuality(e.currentTarget.value as Quality)}>
-          <option value="mp3">MP3</option>
-          <option value="aac128">AAC 128</option>
-        </select>
-      </label>
     </section>
   </div>
 </main>
@@ -81,7 +73,7 @@
   .art img { width: 100%; height: 100%; object-fit: cover; }
   .fallback { font-weight: var(--font-weight-6); padding: var(--size-3); text-align: center; }
   .info { display: grid; gap: var(--size-3); align-content: start; }
-  .volume, .quality { display: flex; gap: var(--size-3); align-items: center; }
+  .volume { display: flex; gap: var(--size-3); align-items: center; }
   .spinner {
     display: inline-block; width: 1em; height: 1em; margin-inline-end: var(--size-2);
     border: 2px solid currentColor; border-inline-end-color: transparent; border-radius: 50%;

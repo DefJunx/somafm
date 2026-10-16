@@ -26,12 +26,10 @@ it("sends commands with camelCase args and clamps volume", async () => {
   await p.play("groovesalad");
   await p.stop();
   await p.setVolume(3);
-  await p.setQuality("aac128");
   expect(calls).toEqual([
     ["play", { stationId: "groovesalad" }],
     ["stop", {}],
     ["set_volume", { volume: 1 }],
-    ["set_quality", { quality: "aac128" }],
   ]);
 });
 

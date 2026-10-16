@@ -4,7 +4,7 @@ Status: ready-for-agent
 Blocked by: 03
 
 ## Goal
-Persist volume, quality, last Station, Favourites and chip state in a migrating store, add the Favourites UI, and restore window geometry.
+Persist volume, last Station, Favourites and chip state in a migrating store, add the Favourites UI, and restore window geometry.
 
 ## Spec sections
 - [§8 Settings schema](../spec.md#8-settings-schema-v1--migration)
@@ -13,7 +13,7 @@ Persist volume, quality, last Station, Favourites and chip state in a migrating 
 
 ## Acceptance criteria
 - [ ] `settings` wraps `tauri-plugin-store` with the v1 schema and defaults; ordered migrations, per-key lenient fallback, corrupt file -> `settings.json.bak`, newer `schemaVersion` tolerated; all test-first with temp files.
-- [ ] Volume (debounced ~500 ms), quality and `lastStationId` persist; on launch the last Station loads as `stopped` (bottom bar shows Play), no autoplay; a missing last Station is treated as null without rewriting.
+- [ ] Volume (debounced ~500 ms) and `lastStationId` persist; on launch the last Station loads as `stopped` (bottom bar shows Play), no autoplay; a missing last Station is treated as null without rewriting.
 - [ ] `toggle_favourite`, `set_favourites_only`, `get_settings` and `settings-changed` work; Favourite toggle on the Player screen and the Favourites chip filter the Grid (feed order, missing ids hidden, never pruned); Vitest covers the chip.
 - [ ] `tauri-plugin-window-state` restores window size/position.
 

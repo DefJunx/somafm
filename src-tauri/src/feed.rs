@@ -64,7 +64,7 @@ fn parse_playlists(v: &Value) -> Vec<Playlist> {
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .filter(|p| text(p, "format") != "aacp")
+        .filter(|p| text(p, "format") == "mp3")
         .map(|p| Playlist {
             url: text(p, "url"),
             format: text(p, "format"),
@@ -290,7 +290,7 @@ mod tests {
     ]}"#;
 
     #[test]
-    fn parses_fields_splits_genres_and_drops_aacp() {
+    fn parses_fields_splits_genres_and_keeps_only_mp3_playlists() {
         let s = parse_channels(FIXTURE).unwrap();
         assert_eq!(s.len(), 2);
         assert_eq!(s[0].id, "testwave");
@@ -298,7 +298,7 @@ mod tests {
         assert_eq!(s[0].listeners, 42);
         assert_eq!(s[0].xl_image, "http://x.invalid/c.png");
         let formats: Vec<_> = s[0].playlists.iter().map(|p| p.format.as_str()).collect();
-        assert_eq!(formats, vec!["mp3", "aac"]);
+        assert_eq!(formats, vec!["mp3"]);
     }
 
     #[test]

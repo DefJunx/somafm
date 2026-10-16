@@ -1,10 +1,9 @@
-import { getPlayerState, onPlayerState, play, setQuality, setVolume, stop, type PlayerState, type Quality } from "./api";
+import { getPlayerState, onPlayerState, play, setVolume, stop, type PlayerState } from "./api";
 
 export const initialPlayerState: PlayerState = {
   stationId: null,
   status: { kind: "stopped" },
   volume: 0.8,
-  quality: "mp3",
   nowPlaying: null,
 };
 
@@ -32,7 +31,6 @@ export function createPlayerStore() {
     play: (stationId: string) => play(stationId),
     stop: () => stop(),
     setVolume: (v: number) => setVolume(Math.min(1, Math.max(0, v))),
-    setQuality: (q: Quality) => setQuality(q),
   };
 }
 

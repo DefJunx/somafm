@@ -1,13 +1,13 @@
 # SomaFM desktop app v1: build spec
 
-Self-contained. Builders read this file plus their ticket (`issues/NN-*.md`). Terms (Station, Grid, Tile, Player screen, Active station, Now playing, Stream quality, Favourite, Mirror) follow `GLOSSARY.md`. Decision: native Rust audio, see `docs/adr/0001-native-rust-audio.md`.
+Self-contained. Builders read this file plus their ticket (`issues/NN-*.md`). Terms (Station, Grid, Tile, Player screen, Active station, Now playing, Favourite, Mirror) follow `GLOSSARY.md`. Decision: native Rust audio, see `docs/adr/0001-native-rust-audio.md`.
 
 ## 1. Purpose & scope
 
 - A cross-platform (Linux, macOS, Windows) Tauri 2 desktop radio app: a Grid of SomaFM Stations, a Player screen, audio that keeps playing when you go back to the Grid.
 - Personal use only, never distributed: no public releases, installers, store listings or published binaries.
 - SomaFM's terms forbid third-party clients. Therefore: no SomaFM artwork, branding or station snapshot is committed to the repo; everything is fetched at runtime. Test fixtures are synthetic (section 9). The app name is a plain descriptive label, not SomaFM branding.
-- v1 features: Grid, Player screen, Now playing (artist/title), Stream quality choice, Favourites, tray, media keys + OS overlay.
+- v1 features: Grid, Player screen, Now playing (artist/title), Favourites, tray, media keys + OS overlay.
 - Non-goals: see section 11.
 
 Source: [SomaFM terms vs. this app](../somafm-app/issues/06-third-party-policy-grilling.md), [Spec layout and builder ticket breakdown](../somafm-app/issues/13-spec-layout-grilling.md)
@@ -28,7 +28,7 @@ Layout (repo root is the app root):
 
 - `src-tauri/src/`: `feed` (fetch/cache/parse, `.pls` resolution), `player` (pure reducer core + engine shell: stream adapter, ICY, Mirror failover), `media_controls` (souvlaki), `tray`, `settings` (store wrapper), `commands` (thin IPC). `commands` and `tray` hold no logic.
 - `src/lib/api.ts` (typed invoke/listen), `src/lib/stores/` (`playerState`, `stations`, `settings`), `src/views/Grid.svelte`, `src/views/Player.svelte`.
-- Rust crates: `reqwest`, `symphonia` (mp3, aac), `rodio`, `souvlaki`, `tokio`, `serde`, `tauri-plugin-store`, `tauri-plugin-window-state`; dev: `wiremock` (or axum/hyper stub).
+- Rust crates: `reqwest`, `symphonia` (mp3), `rodio`, `souvlaki`, `tokio`, `serde`, `tauri-plugin-store`, `tauri-plugin-window-state`; dev: `wiremock` (or axum/hyper stub).
 
 Source: [Toolchain](../somafm-app/issues/03-toolchain-research.md), [Architecture split](../somafm-app/issues/04-architecture-grilling.md), [Local build and install](../somafm-app/issues/12-local-build-install-grilling.md), [Grid, hover play, player screen](../somafm-app/issues/05-ui-prototype.md)
 
@@ -58,7 +58,6 @@ pub struct PlayerState {
     pub station_id: Option<String>, // loaded station; None only on fresh install
     pub status: Status,
     pub volume: f32,                // 0.0..=1.0
-    pub quality: Quality,
     pub now_playing: Option<NowPlaying>,
 }
 
@@ -75,10 +74,6 @@ pub enum Status {
 #[serde(rename_all = "camelCase")]
 pub enum ErrorKind { Offline, Unavailable, Unsupported }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum Quality { Mp3, Aac128 }   // serialises "mp3" | "aac128"
-
 #[derive(Serialize, Clone, PartialEq)]
 pub struct NowPlaying {
     pub raw: String,           // ICY StreamTitle verbatim
@@ -90,7 +85,6 @@ pub struct NowPlaying {
 TypeScript mirror (`src/lib/api.ts`):
 
 ```ts
-export type Quality = "mp3" | "aac128";
 export type ErrorKind = "offline" | "unavailable" | "unsupported";
 export type Status =
   | { kind: "stopped" }
@@ -102,7 +96,6 @@ export interface PlayerState {
   stationId: string | null;
   status: Status;
   volume: number;
-  quality: Quality;
   nowPlaying: NowPlaying | null;
 }
 ```
@@ -132,7 +125,6 @@ export interface StationsSnapshot { stations: Station[]; loaded: boolean } // lo
 | `play` | `stationId: string` | void | load + connect station; also the Retry / resume action for the same id |
 | `stop` | none | void | stop playback, keep station loaded (Paused), clear `nowPlaying` |
 | `set_volume` | `volume: number` | void | clamp 0..1; apply live; persisted debounced ~500 ms |
-| `set_quality` | `quality: Quality` | void | if a station is `playing`/`connecting`, reconnect on the new format; persisted |
 | `get_settings` | none | `SettingsView` | (named in spec) `{ favourites: string[]; favouritesOnly: boolean }` |
 | `toggle_favourite` | `stationId: string` | void | add/remove id; emits `settings-changed` |
 | `set_favourites_only` | `value: boolean` | void | (named in spec) persists chip state; emits `settings-changed` |
@@ -154,7 +146,7 @@ Source: [Architecture split](../somafm-app/issues/04-architecture-grilling.md), 
 ## 4. Station feed & cache
 
 - Source: `GET https://somafm.com/channels.json` (single feed, ~51 Stations; server caches ~5 s). Fetched by Rust, not the webview.
-- Fields used per channel: `id`, `title`, `description`, `dj`, `genre` (pipe-separated -> `genres`), `listeners` (numeric string), `lastPlaying`, `image`, `largeimage`, `xlimage`, `playlists[]` (`{url, format: mp3|aac|aacp, quality}`). Missing/extra fields are tolerated; a channel with no `id` is skipped. `aacp` playlists are dropped (HE-AAC unsupported).
+- Fields used per channel: `id`, `title`, `description`, `dj`, `genre` (pipe-separated -> `genres`), `listeners` (numeric string), `lastPlaying`, `image`, `largeimage`, `xlimage`, `playlists[]` (`{url, format, quality}`; only `format == "mp3"` entries are kept). Missing/extra fields are tolerated; a channel with no `id` is skipped. `aac` and `aacp` playlists are dropped (HE-AAC unsupported; see ADR 0001).
 - Refresh: at startup, then every 5 min while the window is visible. Window hidden to tray: no refresh.
 - Cache: last good `channels.json` stored in the app cache dir; loaded at startup so the Grid renders at once with no banner.
 - Failed refresh: keep showing current data; retry with backoff 30 s, 60 s, ... up to the normal 5 min interval.
@@ -170,12 +162,12 @@ Source: [SomaFM data feeds](../somafm-app/issues/02-somafm-data-research.md), [A
 ### 5.1 Pipeline
 - `reqwest` streaming GET -> adapter implementing symphonia `MediaSource` -> `symphonia` decode -> `rodio` output. Engine runs on its own thread; the shell executes effects from the pure core (5.4).
 - The adapter sends `Icy-MetaData: 1`, reads `icy-metaint`, strips metadata blocks from the audio bytes and yields `StreamTitle` values.
-- Supported: MP3 and AAC-LC (ADTS). HE-AAC (`aacp`) is never offered. All stream URLs are HTTPS.
+- Supported: MP3 only. AAC (`aac`, `aacp`) is never offered (ADR 0001). All stream URLs are HTTPS.
 - Decode failure on a stream -> `error{unsupported}`.
 
-### 5.2 Stream quality
-- Global setting, two choices: `mp3` (default) and `aac128`. The Station's `playlists` are filtered to `format == "mp3"` or `"aac"` respectively; no format fallback.
-- Changing quality while playing reconnects on the new format (first-connect rules apply).
+### 5.2 Stream format
+- MP3 only (`format == "mp3"` playlists). AAC is not offered: SomaFM's `aac` 128k streams are MPEG-2 ADTS (`0xFFF9`) at a 22.05 kHz core, i.e. very likely HE-AAC, which symphonia cannot decode (ADR 0001).
+- A stream that cannot be recognised within the first 128 KiB, or cannot be decoded, ends in `error{unsupported}`.
 
 ### 5.3 Now playing (ICY)
 - `StreamTitle='...'` is parsed from ICY blocks. Split on the first ` - `: artist before, title after. No separator: `artist = None`, `title = whole string`. Empty `StreamTitle` -> no change. Strip stray quotes/trailing `;`; non-UTF-8 handled lossily.
@@ -184,7 +176,7 @@ Source: [SomaFM data feeds](../somafm-app/issues/02-somafm-data-research.md), [A
 
 ### 5.4 Core: pure reducer
 - `fn reduce(state, event, now: Instant) -> (state, Vec<Effect>)`. Time is passed as data; no Clock trait.
-- Events (examples): `PlayRequested(id)`, `StopRequested`, `Connected`, `ConnectFailed(kind)`, `StreamDropped`, `NoBytesTimeout`, `TimerFired`, `TitleChanged`, `DecodeFailed`, `SetVolume`, `SetQuality`.
+- Events (examples): `PlayRequested(id)`, `StopRequested`, `Connected`, `ConnectFailed(kind)`, `StreamDropped`, `NoBytesTimeout`, `TimerFired`, `TitleChanged`, `DecodeFailed`, `SetVolume`.
 - Effects: `ConnectMirror(n)`, `ArmTimer(at)`, `Disconnect`, `EmitSnapshot`, `ApplyVolume`, etc. The shell (tokio/reqwest/rodio) executes them.
 
 ### 5.5 Reconnect/error state machine
@@ -207,7 +199,7 @@ Source: [SomaFM data feeds](../somafm-app/issues/02-somafm-data-research.md), [A
 Error messages: offline "You're offline", unavailable "Station unavailable", unsupported "Can't play this stream".
 
 ### 5.6 `.pls` and Mirror cache
-- On `play`, fetch the Station's `.pls` for the chosen quality; parse `FileN=` entries into an ordered Mirror list. Each successful fetch refreshes a per-station Mirror-list cache in the app cache dir next to the feed.
+- On `play`, fetch the Station's MP3 `.pls`; parse `FileN=` entries into an ordered Mirror list. Each successful fetch refreshes a per-station Mirror-list cache in the app cache dir next to the feed.
 - If the `.pls` fetch fails, use the cached Mirror list (playback works while somafm.com is down but stream servers are up). No cache and fetch fails -> `offline` (network error) or `unavailable` (HTTP error / empty).
 
 Source: [Native Rust audio engine](../../docs/adr/0001-native-rust-audio.md), [Architecture split](../somafm-app/issues/04-architecture-grilling.md), [Stream errors and reconnect](../somafm-app/issues/08-stream-errors-grilling.md), [Media keys and tray](../somafm-app/issues/07-media-keys-tray-grilling.md), [Test strategy](../somafm-app/issues/11-test-strategy-grilling.md)
@@ -225,7 +217,7 @@ Frontend is a pure view of the stores. Two views: `Grid` and `Player`. No toasts
 - Empty state when `loaded=false`: "Can't reach SomaFM" + Retry.
 
 **Player screen**
-- Left: big artwork. Right: Station name, description, listeners, Now playing (artist - title), main button, volume slider + mute, Stream quality picker (MP3 / AAC 128), Favourite toggle. Back button top left returns to the Grid; audio continues.
+- Left: big artwork. Right: Station name, description, listeners, Now playing (artist - title), main button, volume slider + mute, Favourite toggle. Back button top left returns to the Grid; audio continues.
 - Main button: Stop while `playing`; spinner while `connecting`; Play when `stopped` (Paused display: status line "Paused"); Retry in `error`.
 - Status line: "Connecting..." / "Reconnecting..." / error message per kind / "Paused" when stopped with a loaded station.
 
@@ -274,7 +266,6 @@ One `tauri-plugin-store` file (`settings.json`, OS app-config dir). Rust `settin
 | `schemaVersion` | int | `1` | |
 | `favourites` | string[] | `[]` | Station ids, deduplicated set, displayed in feed order, no manual reordering |
 | `volume` | float 0.0-1.0 | `0.8` | clamped on load; saves debounced ~500 ms |
-| `quality` | `"mp3"` \| `"aac128"` | `"mp3"` | |
 | `lastStationId` | string \| null | `null` | written when `play` is accepted for a known Station id (even if the connect then fails), not on stop |
 | `favouritesOnly` | bool | `false` | Favourites chip state |
 
@@ -298,7 +289,7 @@ Source: [Settings schema and migration](../somafm-app/issues/09-settings-schema-
 **Strategy**
 - Rust core is a pure reducer (5.4); exhaustive table-driven unit tests, no IO, for: `channels.json` -> Stations (missing/extra fields); `.pls` -> ordered Mirrors; ICY `StreamTitle` split (no ` - `, several ` - `, empty, non-UTF-8, stray quotes); backoff schedule and 2-minute budget; settings migrations, per-key fallback, corrupt file -> `.bak`; every PlayerState transition in 5.5.
 - Network faked with a local in-process stub HTTP server (wiremock or axum/hyper) serving fixtures and misbehaving on cue (stall, 404, refuse, mid-stream cut). No trait mock over the HTTP client. `tokio::time::pause()` only in shell tests.
-- Fixtures synthetic only: invented Stations/URLs; audio is seconds of generated tone encoded MP3/AAC with ICY framing. No SomaFM bytes in the repo.
+- Fixtures synthetic only: invented Stations/URLs; audio is seconds of generated tone encoded MP3 with ICY framing. No SomaFM bytes in the repo.
 - One `#[ignore]` live check fetching real `channels.json` and asserting it parses (`cargo test -- --ignored`, by hand).
 - Decode pipeline tested against a sink trait with a null sink counting samples.
 - Frontend: Vitest + `@testing-library/svelte`; IPC faked with `@tauri-apps/api/mocks` (`mockIPC` + emitted snapshot events). Covers snapshot -> store mapping, the Favourites chip, and state-driven components (active Tile ring + badge, bottom bar, Player screen connecting / reconnecting / error-with-Retry / paused). No pixel tests.
@@ -319,12 +310,11 @@ Source: [Settings schema and migration](../somafm-app/issues/09-settings-schema-
 | S2 | Offline with cached feed: Grid renders at once, no banner. Offline with cache deleted: "Can't reach SomaFM" + Retry; reconnecting network then Retry fills the Grid | 02 |
 | S3 | Click a Tile: Player screen opens and audio plays; volume slider and mute change loudness; Stop stops (status "Paused") | 03 |
 | S4 | Back to Grid while playing: audio continues, Tile has ring + equaliser badge, bottom bar shows Station with Stop and jump to Player | 03 |
-| S5 | Switching quality (MP3 / AAC 128) on the Player screen reconnects and plays on the new format | 03 |
 | S6 | Artist and title appear on the Player screen and bottom bar and update on track change | 04 |
 | S7 | Playing, then disconnect network: status "Reconnecting..." with pulsing dot; reconnect network within 2 min resumes by itself | 05 |
 | S8 | Stay disconnected > 2 min (or first play while offline): error "You're offline", warning icon, Retry in Player and bar; Retry after reconnecting plays | 05 |
 | S9 | Favourite toggle on the Player screen; Favourites chip shows only Favourites; state survives restart | 06 |
-| S10 | Restart: volume, quality and last Station restored; app is Paused, bottom bar shows Play, nothing autoplays | 06 |
+| S10 | Restart: volume and last Station restored; app is Paused, bottom bar shows Play, nothing autoplays | 06 |
 | S11 | Window size/position restored after restart | 06 |
 | S12 | Close window: it hides, audio continues; tray Show/Hide brings it back | 07 |
 | S13 | Tray menu: now-playing line, Play/Stop label follows state, Favourites submenu plays a Station, Quit exits | 07 |
@@ -355,7 +345,7 @@ Source: [Local build and install per platform](../somafm-app/issues/12-local-bui
 - Accounts, scrobbling, recording or downloading streams, SomaFM donation/shop flows.
 - Launch at login; auto-update.
 - Sleep timer (none anywhere: not in PlayerState, commands, UI or tray).
-- HE-AAC (`aacp`) streams; Next/Previous; seek; mapping OS volume to app volume.
+- AAC / HE-AAC streams (`aac`, `aacp`); stream quality choice (v1 is MP3 only); Next/Previous; seek; mapping OS volume to app volume.
 - Automated E2E and audio-output tests; CI; coverage gates.
 - Bundled or committed SomaFM artwork, branding or feed snapshots.
 - Verifying macOS/Windows builds (steps are documented only).
@@ -366,5 +356,5 @@ Source: [Map: out of scope](../somafm-app/map.md), [Sleep timer UX](../somafm-ap
 
 None. Resolved with the user, 2026-10-16:
 
-1. Quality labels are "MP3" and "AAC 128"; MP3 plays the feed's `format == "mp3"` playlist as-is (about 256-320 kbps).
+1. v1 is MP3 only (revised 2026-10-16): no stream quality choice. MP3 plays the feed's `format == "mp3"` playlist as-is (about 256-320 kbps).
 2. `lastStationId` is written when `play` is accepted for a known Station id, so a failed first connect still restores that Station as Paused.

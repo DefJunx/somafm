@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::{ErrorKind, Quality};
+use super::ErrorKind;
 use crate::feed::Playlist;
 
 /// Ordered Mirror URLs from a `.pls` body: `FileN=` entries sorted by `N`
@@ -25,11 +25,9 @@ pub fn parse_pls(body: &str) -> Vec<String> {
     entries.into_iter().map(|(_, url)| url).collect()
 }
 
-/// The playlist for `quality`: format must match; prefer quality "highest", else the first.
-pub fn pick_playlist(playlists: &[Playlist], quality: Quality) -> Option<&Playlist> {
-    let mut matching = playlists
-        .iter()
-        .filter(|p| p.format == quality.feed_format());
+/// The MP3 playlist: prefer quality "highest", else the first.
+pub fn pick_playlist(playlists: &[Playlist]) -> Option<&Playlist> {
+    let mut matching = playlists.iter().filter(|p| p.format == "mp3");
     let first = matching.next()?;
     if first.quality == "highest" {
         return Some(first);
@@ -65,7 +63,7 @@ pub fn choose_mirrors(
     }
 }
 
-fn cache_file(dir: &Path, station_id: &str, quality: Quality) -> PathBuf {
+fn cache_file(dir: &Path, station_id: &str) -> PathBuf {
     let safe: String = station_id
         .chars()
         .map(|c| {
@@ -76,7 +74,7 @@ fn cache_file(dir: &Path, station_id: &str, quality: Quality) -> PathBuf {
             }
         })
         .collect();
-    dir.join(format!("mirrors-{safe}-{}.txt", quality.feed_format()))
+    dir.join(format!("mirrors-{safe}.txt"))
 }
 
 fn read_cache(path: &Path) -> Option<Vec<String>> {
@@ -112,9 +110,8 @@ pub async fn resolve_mirrors(
     pls_url: &str,
     cache_dir: &Path,
     station_id: &str,
-    quality: Quality,
 ) -> Result<Vec<String>, ErrorKind> {
-    let path = cache_file(cache_dir, station_id, quality);
+    let path = cache_file(cache_dir, station_id);
     let fetched = fetch(client, pls_url).await;
     if let Ok(m) = &fetched
         && !m.is_empty()
@@ -168,21 +165,17 @@ mod tests {
     }
 
     #[test]
-    fn picks_playlist_by_format_preferring_highest() {
+    fn picks_mp3_playlist_preferring_highest() {
         let lists = [
             pl("mp3", "low", "m-low"),
             pl("aac", "highest", "a-high"),
             pl("mp3", "highest", "m-high"),
         ];
-        assert_eq!(pick_playlist(&lists, Quality::Mp3).unwrap().url, "m-high");
-        assert_eq!(
-            pick_playlist(&lists, Quality::Aac128).unwrap().url,
-            "a-high"
-        );
+        assert_eq!(pick_playlist(&lists).unwrap().url, "m-high");
         let only_low = [pl("mp3", "low", "m-low")];
-        assert_eq!(pick_playlist(&only_low, Quality::Mp3).unwrap().url, "m-low");
-        assert!(pick_playlist(&only_low, Quality::Aac128).is_none());
-        assert!(pick_playlist(&[], Quality::Mp3).is_none());
+        assert_eq!(pick_playlist(&only_low).unwrap().url, "m-low");
+        assert!(pick_playlist(&[pl("aac", "highest", "a")]).is_none());
+        assert!(pick_playlist(&[]).is_none());
     }
 
     #[test]
@@ -219,14 +212,14 @@ mod tests {
     #[test]
     fn cache_roundtrip_and_safe_names() {
         let dir = tempfile::tempdir().unwrap();
-        let path = cache_file(dir.path(), "../evil id", Quality::Aac128);
+        let path = cache_file(dir.path(), "../evil id");
         assert_eq!(path.parent().unwrap(), dir.path());
         assert!(
             path.file_name()
                 .unwrap()
                 .to_str()
                 .unwrap()
-                .ends_with("-aac.txt")
+                .ends_with(".txt")
         );
         assert_eq!(read_cache(&path), None);
         let m = vec!["https://a".to_string(), "https://b".to_string()];

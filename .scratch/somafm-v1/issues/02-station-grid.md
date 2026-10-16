@@ -12,7 +12,7 @@ Rust fetches and caches the SomaFM feed; the Grid renders the Tile wall with gen
 - [§6 UI](../spec.md#6-ui) (Grid, filter chips except Favourites, empty state)
 
 ## Acceptance criteria
-- [x] `feed` parses `channels.json` into `Station`s (genres split on `|`, `aacp` playlists dropped, missing/extra fields tolerated), test-first with synthetic fixtures; one `#[ignore]` live parse check.
+- [x] `feed` parses `channels.json` into `Station`s (genres split on `|`, non-`mp3` playlists dropped (revised: v1 is MP3 only), missing/extra fields tolerated), test-first with synthetic fixtures; one `#[ignore]` live parse check.
 - [x] Fetch at startup and every 5 min while the window is visible; last good copy cached in the app cache dir; failed refresh retries on backoff 30 s, 60 s, ... up to 5 min (tested against a stub HTTP server).
 - [x] `get_stations`, `refresh_stations` and the `stations-updated` event work per spec; `loaded=false` when there is no cache and no success.
 - [x] Grid shows uniform square Tiles in feed order with hover play button, All + genre filter chips, image-failure fallback (name on plain surface), and the "Can't reach SomaFM" + Retry empty state; Vitest covers store mapping and chips.
