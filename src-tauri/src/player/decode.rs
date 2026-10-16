@@ -1,6 +1,8 @@
 //! symphonia decode loop feeding a `PcmSink`. The sink is a trait so tests can
 //! count samples instead of opening an audio device.
 
+use std::io::{self, Read, Seek, SeekFrom};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
@@ -34,6 +36,49 @@ pub fn f32_to_bits(v: f32) -> u32 {
     v.to_bits()
 }
 
+/// Bytes allowed before the first decoded packet. A format symphonia cannot
+/// recognise (e.g. ADTS with the MPEG-2 `0xFFF9` sync, used by SomaFM's HE-AAC
+/// "aac" streams) makes the probe scan an endless live stream forever.
+pub const PRE_AUDIO_BUDGET: usize = 128 * 1024;
+
+struct Budgeted<S> {
+    inner: S,
+    remaining: usize,
+    armed: Arc<AtomicBool>,
+    tripped: Arc<AtomicBool>,
+}
+
+impl<S: Read> Read for Budgeted<S> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.armed.load(Ordering::Relaxed) {
+            if self.remaining == 0 {
+                self.tripped.store(true, Ordering::Relaxed);
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "probe budget"));
+            }
+            let max = buf.len().min(self.remaining);
+            let n = self.inner.read(&mut buf[..max])?;
+            self.remaining -= n;
+            return Ok(n);
+        }
+        self.inner.read(buf)
+    }
+}
+
+impl<S: Seek> Seek for Budgeted<S> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
+    }
+}
+
+impl<S: MediaSource> MediaSource for Budgeted<S> {
+    fn is_seekable(&self) -> bool {
+        self.inner.is_seekable()
+    }
+    fn byte_len(&self) -> Option<u64> {
+        self.inner.byte_len()
+    }
+}
+
 /// Decode `source` into `sink` until cancelled, ended or failed. `on_first_audio`
 /// is called once, after the first decoded packet has been pushed to the sink.
 /// `sink` is created lazily by `make_sink` after the first packet, so a missing
@@ -45,6 +90,21 @@ pub fn decode_stream<S: MediaSource + 'static>(
     cancel: &AtomicBool,
     mut on_first_audio: impl FnMut(),
 ) -> DecodeEnd {
+    let armed = Arc::new(AtomicBool::new(true));
+    let tripped = Arc::new(AtomicBool::new(false));
+    let source = Budgeted {
+        inner: source,
+        remaining: PRE_AUDIO_BUDGET,
+        armed: armed.clone(),
+        tripped: tripped.clone(),
+    };
+    let unsupported_if_tripped = |end: DecodeEnd| {
+        if tripped.load(Ordering::Relaxed) {
+            DecodeEnd::Unsupported
+        } else {
+            end
+        }
+    };
     let mss = MediaSourceStream::new(Box::new(source), Default::default());
     let probed = match symphonia::default::get_probe().format(
         &Hint::new(),
@@ -53,7 +113,7 @@ pub fn decode_stream<S: MediaSource + 'static>(
         &MetadataOptions::default(),
     ) {
         Ok(p) => p,
-        Err(e) => return map_err(e, false),
+        Err(e) => return unsupported_if_tripped(map_err(e, false)),
     };
     let mut format = probed.format;
     let Some(track) = format
@@ -82,7 +142,7 @@ pub fn decode_stream<S: MediaSource + 'static>(
         }
         let packet = match format.next_packet() {
             Ok(p) => p,
-            Err(e) => return map_err(e, sink.is_some()),
+            Err(e) => return unsupported_if_tripped(map_err(e, sink.is_some())),
         };
         if packet.track_id() != track_id {
             continue;
@@ -102,6 +162,9 @@ pub fn decode_stream<S: MediaSource + 'static>(
         samples.copy_interleaved_ref(decoded);
 
         let first = sink.is_none();
+        if first {
+            armed.store(false, Ordering::Relaxed);
+        }
         if first {
             match (make_sink.take().expect("sink factory used once"))() {
                 Ok(s) => sink = Some(s),
@@ -286,5 +349,49 @@ pub(crate) mod tests {
             || {},
         );
         assert_eq!(end, DecodeEnd::Io { after_audio: false });
+    }
+
+    /// Rewrites every ADTS header's ID bit (0xFFF1 -> 0xFFF9, MPEG-2 style), which
+    /// symphonia's ADTS reader does not recognise.
+    pub fn mpeg2_adts(src: &[u8]) -> Vec<u8> {
+        let mut out = src.to_vec();
+        let mut i = 0;
+        while i + 7 <= out.len() && out[i] == 0xff && out[i + 1] & 0xf0 == 0xf0 {
+            let len = ((out[i + 3] as usize & 0x03) << 11)
+                | ((out[i + 4] as usize) << 3)
+                | (out[i + 5] as usize >> 5);
+            out[i + 1] |= 0x08;
+            i += len.max(7);
+        }
+        out
+    }
+
+    /// Endless repetition of `data`, like a live stream.
+    struct Endless(Vec<u8>, usize);
+    impl Read for Endless {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            for b in buf.iter_mut() {
+                *b = self.0[self.1 % self.0.len()];
+                self.1 += 1;
+            }
+            Ok(buf.len())
+        }
+    }
+
+    #[test]
+    fn unrecognised_endless_stream_ends_unsupported_instead_of_hanging() {
+        let patched = mpeg2_adts(AAC);
+        assert_eq!(patched[1], 0xf9);
+        let counts = Counts::default();
+        let c = counts.clone();
+        let end = decode_stream(
+            StreamSource::new(Endless(patched, 0)),
+            move || Ok(Box::new(NullSink(c)) as Box<dyn PcmSink>),
+            &AtomicU32::new(0),
+            &AtomicBool::new(false),
+            || {},
+        );
+        assert_eq!(end, DecodeEnd::Unsupported);
+        assert_eq!(*counts.samples.lock().unwrap(), 0);
     }
 }

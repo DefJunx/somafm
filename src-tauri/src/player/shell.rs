@@ -347,7 +347,7 @@ fn stream_thread(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::player::decode::tests::{AAC, Counts, MP3, NullSink};
+    use crate::player::decode::tests::{AAC, Counts, MP3, NullSink, mpeg2_adts};
     use crate::player::{Status, pls::resolve_mirrors};
     use std::collections::HashMap;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -670,5 +670,49 @@ mod tests {
                 .recv_timeout(Duration::from_secs(2))
                 .unwrap_or_else(|_| panic!("{name}: thread still alive after cancel"));
         }
+    }
+
+    /// Live debugging aid: `SOMAFM_LIVE_URL=... cargo test live_stream -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn live_stream() {
+        let url = std::env::var("SOMAFM_LIVE_URL").expect("SOMAFM_LIVE_URL");
+        let cancel = Arc::new(AtomicBool::new(false));
+        let c = cancel.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(12));
+            c.store(true, Ordering::Relaxed);
+        });
+        let counts = Counts::default();
+        let k = counts.clone();
+        let factory: SinkFactory =
+            Arc::new(move || Ok(Box::new(NullSink(k.clone())) as Box<dyn PcmSink>));
+        stream_thread(&url, 1, &cancel, &AtomicU32::new(0), factory, |e| {
+            eprintln!("event: {e:?} samples={}", counts.samples.lock().unwrap())
+        });
+        eprintln!("samples={}", counts.samples.lock().unwrap());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn unrecognised_aac_stream_larger_than_the_probe_budget_is_unsupported() {
+        // ADTS with the MPEG-2 sync (0xFFF9), repeated past the pre-audio budget.
+        let one = mpeg2_adts(AAC);
+        let body: Vec<u8> = one.iter().copied().cycle().take(300 * 1024).collect();
+        let stub =
+            Stub::start(|base| station_routes(base, &[], &["/aac"], &[("/aac", 200, &body)])).await;
+        let rig = rig(&stub).await;
+        rig.player.set_quality(Quality::Aac128);
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, 0, |s| {
+            matches!(
+                s.status,
+                Status::Error {
+                    error_kind: ErrorKind::Unsupported,
+                    ..
+                }
+            )
+        })
+        .await;
+        assert_eq!(*rig.counts.samples.lock().unwrap(), 0);
     }
 }
