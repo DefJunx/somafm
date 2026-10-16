@@ -1,6 +1,6 @@
 # 01 Scaffold + Open Props + check script
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none
 
 ## Goal
@@ -23,3 +23,6 @@ None (no S-IDs owned). Shared Definition of Done in [§9 Testing & DoD](../spec.
 
 ## Notes
 - Run scaffolding inside the Fedora 44 toolbox (spec §10). Do not add dependencies beyond what later slices need; add those in the slice that uses them.
+
+## Answer
+Implemented in a9bfbba (Tauri 2 + Svelte-TS scaffold, identifier `dev.defjunx.somafm`, Rust module skeleton, `src/lib/api.ts` types, Open Props imported in `src/main.ts`, placeholder Grid/Player views, `pnpm check` = fmt/clippy/cargo test then svelte-check/vitest, `mockIPC` test, original radio SVG + tray icons). `pnpm check` passes inside `fedora-toolbox-44`.
