@@ -1,6 +1,6 @@
 # 04 Now playing: ICY artist/title on the player and bar
 
-Status: ready-for-human
+Status: resolved
 Blocked by: 03
 
 ## Goal
@@ -27,3 +27,4 @@ S6. Shared Definition of Done in [§9 Testing & DoD](../spec.md#9-testing--the-c
 - Implemented in `src-tauri/src/player/icy.rs` (parser, split, `IcyReader`); `shell.rs` requests `Icy-MetaData: 1`, reads `icy-metaint`, wraps the network reader in `IcyReader` before `StreamSource`/symphonia. Titles reach the reducer as `Event::TitleChanged{attempt, raw}`.
 - Smoke S6 (real SomaFM stream shows artist/title) not verified by the agent; needs a manual check.
 - `nowPlaying` is only cleared by stop/station change (per existing reducer); it stays after a stream error until reconnect work in 05.
+- User verified S6 manually on 2026-10-16. Resolved.
