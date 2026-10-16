@@ -174,6 +174,16 @@ impl Feed {
         self.snapshot.lock().unwrap().clone()
     }
 
+    pub fn station(&self, id: &str) -> Option<Station> {
+        self.snapshot
+            .lock()
+            .unwrap()
+            .stations
+            .iter()
+            .find(|s| s.id == id)
+            .cloned()
+    }
+
     /// Fetches the feed once. On success caches the body and returns whether the
     /// snapshot changed. On failure the current snapshot is left untouched.
     pub async fn refresh(&self) -> Result<bool, FetchError> {

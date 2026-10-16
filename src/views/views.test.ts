@@ -5,8 +5,9 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import Grid from "./Grid.svelte";
 import Player from "./Player.svelte";
 import { createStationsStore } from "../lib/stations.svelte";
+import { createPlayerStore, initialPlayerState } from "../lib/player.svelte";
 import { station } from "../lib/fixtures";
-import type { StationsSnapshot } from "../lib/api";
+import type { PlayerState, StationsSnapshot } from "../lib/api";
 
 afterEach(() => { cleanup(); clearMocks(); });
 
@@ -15,14 +16,24 @@ const feed: StationsSnapshot = {
   stations: [station("a", ["Ambient"]), station("b", ["Rock"]), station("c", ["Ambient"])],
 };
 
-it("renders the placeholder Player", () => {
-  render(Player);
-  expect(screen.getByRole("heading", { name: "Player" })).toBeTruthy();
-});
+const ps = (over: Partial<PlayerState> = {}): PlayerState => ({ ...initialPlayerState, ...over });
+type Call = [string, unknown];
+
+/** Routes IPC by command: player state / stations / records player commands. */
+function ipc(opts: { snap?: StationsSnapshot; player?: PlayerState; calls?: Call[] } = {}) {
+  mockIPC(
+    (cmd, args) => {
+      if (cmd === "get_player_state") return opts.player ?? ps();
+      if (cmd === "get_stations" || cmd === "refresh_stations") return opts.snap ?? feed;
+      opts.calls?.push([cmd, args]);
+    },
+    { shouldMockEvents: true },
+  );
+}
 
 it("shows Tiles in feed order and filters by genre chip", async () => {
-  mockIPC(() => feed, { shouldMockEvents: true });
-  render(Grid, { store: createStationsStore() });
+  ipc();
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
   await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(3));
   const ambient = screen.getByRole("button", { name: "Ambient" });
   await fireEvent.click(ambient);
@@ -33,8 +44,8 @@ it("shows Tiles in feed order and filters by genre chip", async () => {
 });
 
 it("falls back to the station name when an image fails", async () => {
-  mockIPC(() => feed, { shouldMockEvents: true });
-  render(Grid, { store: createStationsStore() });
+  ipc();
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
   const imgs = await waitFor(() => screen.getAllByRole("img"));
   await fireEvent.error(imgs[0]);
   expect(screen.getAllByRole("img")).toHaveLength(2);
@@ -42,24 +53,24 @@ it("falls back to the station name when an image fails", async () => {
 });
 
 it("shows the empty state and Retry refreshes", async () => {
-  mockIPC((cmd) => (cmd === "refresh_stations" ? feed : { stations: [], loaded: false }), { shouldMockEvents: true });
-  render(Grid, { store: createStationsStore() });
+  mockIPC((cmd) => (cmd === "get_player_state" ? ps() : cmd === "refresh_stations" ? feed : { stations: [], loaded: false }), { shouldMockEvents: true });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
   await screen.findByText("Can't reach SomaFM");
   await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(3));
 });
 
 it("does not flash the empty state before the first snapshot", async () => {
-  mockIPC(() => new Promise(() => {}), { shouldMockEvents: true });
-  render(Grid, { store: createStationsStore() });
+  mockIPC((cmd) => (cmd === "get_player_state" ? ps() : new Promise(() => {})), { shouldMockEvents: true });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
   await Promise.resolve();
   expect(screen.queryByText("Can't reach SomaFM")).toBeNull();
 });
 
 it("retries the image fallback when the image URL changes", async () => {
   const store = createStationsStore();
-  mockIPC(() => feed, { shouldMockEvents: true });
-  render(Grid, { store });
+  ipc();
+  render(Grid, { store, player: createPlayerStore() });
   const imgs = await waitFor(() => screen.getAllByRole("img"));
   await fireEvent.error(imgs[0]);
   expect(screen.getAllByRole("img")).toHaveLength(2);
@@ -68,4 +79,136 @@ it("retries the image fallback when the image URL changes", async () => {
     stations: [station("a", ["Ambient"], { largeImage: "https://img.example/new.png" }), ...feed.stations.slice(1)],
   });
   await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(3));
+});
+
+it("clicking a Tile plays that Station and opens the Player screen", async () => {
+  const calls: Call[] = [];
+  let opened = 0;
+  ipc({ calls });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore(), onopenplayer: () => opened++ });
+  await fireEvent.click(await screen.findByRole("button", { name: "Play Station b" }));
+  expect(calls).toContainEqual(["play", { stationId: "b" }]);
+  expect(opened).toBe(1);
+});
+
+it("marks only the active Tile and the badge follows the status", async () => {
+  ipc({ player: ps({ stationId: "b", status: { kind: "playing" } }) });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  const tile = await screen.findByRole("button", { name: "Play Station b" });
+  await waitFor(() => expect(tile.getAttribute("aria-current")).toBe("true"));
+  expect(screen.getByRole("button", { name: "Play Station a" }).getAttribute("aria-current")).toBeNull();
+  expect(screen.getAllByTestId("badge")).toHaveLength(1);
+  expect(screen.getByTestId("badge").getAttribute("data-status")).toBe("playing");
+
+  expect(document.querySelector(".eq")).toBeTruthy();
+  await emit("player-state", ps({ stationId: "b", status: { kind: "stopped" } }));
+  await waitFor(() => expect(screen.getByTestId("badge").getAttribute("data-status")).toBe("stopped"));
+  expect(document.querySelector(".eq")).toBeNull(); // Paused: ring + static badge, no equaliser
+  expect(tile.getAttribute("aria-current")).toBe("true");
+  await emit("player-state", ps({ stationId: "b", status: { kind: "connecting", reconnecting: false } }));
+  await waitFor(() => expect(screen.getByTestId("badge").getAttribute("data-status")).toBe("connecting"));
+  expect(document.querySelector(".eq")).toBeNull();
+  await emit("player-state", ps({ stationId: "b", status: { kind: "error", errorKind: "offline", message: "You're offline" } }));
+  await waitFor(() => expect(screen.getByTestId("badge").getAttribute("data-status")).toBe("error"));
+  expect(tile.getAttribute("aria-current")).toBe("true"); // ring stays in error
+});
+
+it("bottom bar shows the Station with Stop and a jump to the Player screen", async () => {
+  const calls: Call[] = [];
+  let opened = 0;
+  ipc({ player: ps({ stationId: "a", status: { kind: "playing" } }), calls });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore(), onopenplayer: () => opened++ });
+  const bar = await screen.findByRole("complementary", { name: "Now playing" });
+  expect(bar.textContent).toContain("Station a");
+  await fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+  expect(calls).toContainEqual(["stop", {}]);
+  await fireEvent.click(screen.getByRole("button", { name: "Open player for Station a" }));
+  expect(opened).toBe(1);
+});
+
+it("bottom bar is hidden with no station and offers Play when paused, Retry on error", async () => {
+  const calls: Call[] = [];
+  ipc({ calls });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  await screen.findByRole("button", { name: "Play Station a" });
+  expect(screen.queryByRole("complementary")).toBeNull();
+  await emit("player-state", ps({ stationId: "a" }));
+  const bar = await screen.findByRole("complementary");
+  expect(bar.textContent).toContain("Paused");
+  await fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  expect(calls).toContainEqual(["play", { stationId: "a" }]);
+  await emit("player-state", ps({ stationId: "a", status: { kind: "error", errorKind: "unavailable", message: "Station unavailable" } }));
+  await screen.findByRole("button", { name: "Retry" });
+  expect(screen.getByRole("complementary").textContent).toContain("Station unavailable");
+});
+
+async function renderPlayer(player: PlayerState, calls: Call[] = [], onback?: () => void) {
+  ipc({ player, calls });
+  const store = createPlayerStore();
+  render(Player, { player: store, stations: createStationsStore(), onback });
+  await screen.findByRole("heading", { name: /Station|Paused/ });
+  return store;
+}
+
+it("Player screen shows the Station details and Stop while playing", async () => {
+  const calls: Call[] = [];
+  const snap = { loaded: true, stations: [station("a", [], { description: "Chill beats", listeners: 42 })] };
+  ipc({ snap, player: ps({ stationId: "a", status: { kind: "playing" }, nowPlaying: { raw: "X - Y", artist: "X", title: "Y" } }), calls });
+  render(Player, { player: createPlayerStore(), stations: createStationsStore() });
+  await screen.findByRole("heading", { name: "Station a" });
+  await screen.findByText("Chill beats");
+  expect(screen.getByText("42 listeners")).toBeTruthy();
+  expect(screen.getByText("X - Y")).toBeTruthy();
+  expect(screen.getByRole("img", { name: "Station a" })).toBeTruthy();
+  await fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+  expect(calls).toContainEqual(["stop", {}]);
+});
+
+it("Player screen status line and main button per status", async () => {
+  const store = await renderPlayer(ps({ stationId: "a" }));
+  expect(screen.getByRole("status").textContent).toBe("Paused");
+  expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+  await emit("player-state", ps({ stationId: "a", status: { kind: "connecting", reconnecting: false } }));
+  await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Connecting..."));
+  expect((screen.getByRole("button", { name: "Connecting" }) as HTMLButtonElement).disabled).toBe(true);
+  await emit("player-state", ps({ stationId: "a", status: { kind: "connecting", reconnecting: true } }));
+  await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Reconnecting..."));
+  await emit("player-state", ps({ stationId: "a", status: { kind: "error", errorKind: "offline", message: "You're offline" } }));
+  await waitFor(() => expect(screen.getByRole("status").textContent).toBe("You're offline"));
+  expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+  expect(store.state.status.kind).toBe("error");
+});
+
+it("Player screen: Play/Retry plays, volume slider, mute, quality and Back", async () => {
+  const calls: Call[] = [];
+  let backed = 0;
+  await renderPlayer(ps({ stationId: "a", volume: 0.6 }), calls, () => backed++);
+  await fireEvent.click(screen.getByRole("button", { name: "Play" }));
+  expect(calls).toContainEqual(["play", { stationId: "a" }]);
+
+  const slider = screen.getByLabelText("Volume") as HTMLInputElement;
+  await fireEvent.input(slider, { target: { value: "0.3" } });
+  expect(calls).toContainEqual(["set_volume", { volume: 0.3 }]);
+
+  await fireEvent.click(screen.getByRole("button", { name: "Mute" }));
+  expect(calls).toContainEqual(["set_volume", { volume: 0 }]);
+  await emit("player-state", ps({ stationId: "a", volume: 0 }));
+  await fireEvent.click(await screen.findByRole("button", { name: "Unmute" }));
+  expect(calls.filter(([c]) => c === "set_volume").at(-1)).toEqual(["set_volume", { volume: 0.6 }]);
+
+  await fireEvent.change(screen.getByLabelText("Quality"), { target: { value: "aac128" } });
+  expect(calls).toContainEqual(["set_quality", { quality: "aac128" }]);
+
+  await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(backed).toBe(1);
+});
+
+it("bottom bar keeps an enabled Stop while connecting", async () => {
+  const calls: Call[] = [];
+  ipc({ player: ps({ stationId: "a", status: { kind: "connecting", reconnecting: false } }), calls });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  const stop = (await screen.findByRole("button", { name: "Stop" })) as HTMLButtonElement;
+  expect(stop.disabled).toBe(false);
+  await fireEvent.click(stop);
+  expect(calls).toContainEqual(["stop", {}]);
 });

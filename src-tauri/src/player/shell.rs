@@ -1,0 +1,674 @@
+//! Imperative shell: owns the `Core`, runs the reducer, and executes its effects
+//! (resolve `.pls`, stream + decode on a dedicated thread, apply volume, emit).
+//! Playback never touches the webview, so it survives the window being hidden.
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use tokio::runtime::Handle;
+use tokio::task::JoinHandle;
+
+use super::decode::{DecodeEnd, PcmSink, decode_stream, f32_to_bits};
+use super::pls::{pick_playlist, resolve_mirrors};
+use super::reducer::{Core, Effect, Event, reduce};
+use super::source::StreamSource;
+use super::{ErrorKind, PlayerState, Quality};
+use crate::feed::Feed;
+
+/// Creates the audio sink on the decode thread (cpal streams may not be `Send`).
+pub type SinkFactory = Arc<dyn Fn() -> Result<Box<dyn PcmSink>, String> + Send + Sync>;
+type Emit = Box<dyn Fn(PlayerState) + Send + Sync>;
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
+#[derive(Default)]
+struct ResolvedMirrors {
+    attempt: u64,
+    urls: Vec<String>,
+}
+
+#[derive(Default)]
+struct Active {
+    resolve: Option<JoinHandle<()>>,
+    cancel: Option<Arc<AtomicBool>>,
+}
+
+struct Inner {
+    core: Mutex<Core>,
+    feed: Arc<Feed>,
+    http: reqwest::Client,
+    cache_dir: PathBuf,
+    rt: Handle,
+    emit: Emit,
+    sink_factory: SinkFactory,
+    volume: Arc<AtomicU32>,
+    /// Mirrors resolved for connection attempt `attempt`.
+    mirrors: Mutex<ResolvedMirrors>,
+    active: Mutex<Active>,
+}
+
+#[derive(Clone)]
+pub struct Player {
+    inner: Arc<Inner>,
+}
+
+impl Player {
+    pub fn new(
+        feed: Arc<Feed>,
+        cache_dir: &Path,
+        rt: Handle,
+        sink_factory: SinkFactory,
+        emit: impl Fn(PlayerState) + Send + Sync + 'static,
+    ) -> Self {
+        let state = PlayerState::default();
+        Self {
+            inner: Arc::new(Inner {
+                volume: Arc::new(AtomicU32::new(f32_to_bits(state.volume))),
+                core: Mutex::new(Core::new(state)),
+                feed,
+                http: reqwest::Client::builder()
+                    .timeout(Duration::from_secs(15))
+                    .build()
+                    .expect("http client"),
+                cache_dir: cache_dir.to_path_buf(),
+                rt,
+                emit: Box::new(emit),
+                sink_factory,
+                mirrors: Mutex::new(ResolvedMirrors::default()),
+                active: Mutex::new(Active::default()),
+            }),
+        }
+    }
+
+    pub fn state(&self) -> PlayerState {
+        self.inner.core.lock().unwrap().state.clone()
+    }
+
+    /// Err only for an unknown station id (a programmer error).
+    pub fn play(&self, station_id: &str) -> Result<(), String> {
+        if self.inner.feed.station(station_id).is_none() {
+            return Err(format!("unknown station `{station_id}`"));
+        }
+        self.inner.dispatch(Event::PlayRequested {
+            station_id: station_id.to_string(),
+        });
+        Ok(())
+    }
+
+    pub fn stop(&self) {
+        self.inner.dispatch(Event::StopRequested);
+    }
+
+    pub fn set_volume(&self, volume: f32) {
+        self.inner.dispatch(Event::SetVolume(volume));
+    }
+
+    pub fn set_quality(&self, quality: Quality) {
+        self.inner.dispatch(Event::SetQuality(quality));
+    }
+}
+
+impl Inner {
+    // Effects run under the core lock: they must never re-enter `dispatch` synchronously.
+    /// Reduce under the core lock and execute the effects before releasing it,
+    /// so snapshots are emitted in state order.
+    fn dispatch(self: &Arc<Self>, event: Event) {
+        let mut guard = self.core.lock().unwrap();
+        let (next, effects) = reduce(guard.clone(), event, Instant::now());
+        *guard = next;
+        for effect in effects {
+            self.execute(effect, &guard.state);
+        }
+    }
+
+    fn execute(self: &Arc<Self>, effect: Effect, state: &PlayerState) {
+        match effect {
+            Effect::EmitSnapshot => (self.emit)(state.clone()),
+            Effect::ApplyVolume(v) => self.volume.store(f32_to_bits(v), Ordering::Relaxed),
+            Effect::Disconnect => {
+                let mut active = self.active.lock().unwrap();
+                if let Some(h) = active.resolve.take() {
+                    h.abort();
+                }
+                if let Some(c) = active.cancel.take() {
+                    c.store(true, Ordering::Relaxed);
+                }
+            }
+            Effect::Resolve {
+                attempt,
+                station_id,
+                quality,
+            } => {
+                let this = self.clone();
+                let handle = self.rt.spawn(async move {
+                    let event = match this.resolve(attempt, &station_id, quality).await {
+                        Ok(count) => Event::MirrorsResolved { attempt, count },
+                        Err(kind) => Event::ResolveFailed { attempt, kind },
+                    };
+                    this.dispatch(event);
+                });
+                self.active.lock().unwrap().resolve = Some(handle);
+            }
+            Effect::ConnectMirror { attempt, index } => {
+                let url = {
+                    let m = self.mirrors.lock().unwrap();
+                    (m.attempt == attempt)
+                        .then(|| m.urls.get(index).cloned())
+                        .flatten()
+                };
+                let cancel = Arc::new(AtomicBool::new(false));
+                if let Some(old) = self.active.lock().unwrap().cancel.replace(cancel.clone()) {
+                    old.store(true, Ordering::Relaxed);
+                }
+                let this = self.clone();
+                let volume = self.volume.clone();
+                let factory = self.sink_factory.clone();
+                std::thread::spawn(move || {
+                    let notify = |e: Event| this.dispatch(e);
+                    match url {
+                        Some(url) => {
+                            stream_thread(&url, attempt, &cancel, &volume, factory, notify)
+                        }
+                        None => notify(Event::ConnectFailed {
+                            attempt,
+                            kind: ErrorKind::Unavailable,
+                        }),
+                    }
+                });
+            }
+        }
+    }
+
+    async fn resolve(
+        &self,
+        attempt: u64,
+        station_id: &str,
+        quality: Quality,
+    ) -> Result<usize, ErrorKind> {
+        let station = self
+            .feed
+            .station(station_id)
+            .ok_or(ErrorKind::Unavailable)?;
+        let playlist = pick_playlist(&station.playlists, quality).ok_or(ErrorKind::Unavailable)?;
+        let mirrors = resolve_mirrors(
+            &self.http,
+            &playlist.url,
+            &self.cache_dir,
+            station_id,
+            quality,
+        )
+        .await?;
+        let count = mirrors.len();
+        *self.mirrors.lock().unwrap() = ResolvedMirrors {
+            attempt,
+            urls: mirrors,
+        };
+        Ok(count)
+    }
+}
+
+enum Msg {
+    /// HTTP status, or `Err` when no response arrived.
+    Head(Result<u16, ()>),
+    Data(Vec<u8>),
+    End,
+}
+
+/// Does the blocking HTTP work on its own thread so the decode thread can poll
+/// `cancel` while the network is silent. It exits when the receiver is dropped.
+fn spawn_pump(url: String) -> mpsc::Receiver<Msg> {
+    let (tx, rx) = mpsc::sync_channel(16);
+    std::thread::spawn(move || {
+        let client = reqwest::blocking::Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(None) // live stream: no total timeout
+            .build();
+        let resp = client.and_then(|c| c.get(&url).send());
+        let mut resp = match resp {
+            Ok(r) => r,
+            Err(_) => {
+                let _ = tx.send(Msg::Head(Err(())));
+                return;
+            }
+        };
+        if tx.send(Msg::Head(Ok(resp.status().as_u16()))).is_err() {
+            return;
+        }
+        let mut buf = [0u8; 8192];
+        loop {
+            let n = std::io::Read::read(&mut resp, &mut buf).unwrap_or(0);
+            let msg = if n == 0 {
+                Msg::End
+            } else {
+                Msg::Data(buf[..n].to_vec())
+            };
+            if tx.send(msg).is_err() || n == 0 {
+                return;
+            }
+        }
+    });
+    rx
+}
+
+const POLL: Duration = Duration::from_millis(100);
+
+/// Reads pump data, waking every `POLL` to check `cancel`. A quiet network is
+/// not a drop here (stall policy is slice 05); only cancel interrupts it.
+struct ChannelReader {
+    rx: mpsc::Receiver<Msg>,
+    cancel: Arc<AtomicBool>,
+    pending: Vec<u8>,
+    pos: usize,
+}
+
+impl ChannelReader {
+    fn next(&mut self) -> std::io::Result<Option<Msg>> {
+        loop {
+            if self.cancel.load(Ordering::Relaxed) {
+                return Err(std::io::Error::other("cancelled"));
+            }
+            match self.rx.recv_timeout(POLL) {
+                Ok(m) => return Ok(Some(m)),
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(None),
+            }
+        }
+    }
+}
+
+impl std::io::Read for ChannelReader {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        while self.pos >= self.pending.len() {
+            match self.next()? {
+                Some(Msg::Data(d)) => {
+                    self.pending = d;
+                    self.pos = 0;
+                }
+                _ => return Ok(0),
+            }
+        }
+        let n = out.len().min(self.pending.len() - self.pos);
+        out[..n].copy_from_slice(&self.pending[self.pos..self.pos + n]);
+        self.pos += n;
+        Ok(n)
+    }
+}
+
+/// One Mirror attempt: connect, decode, play until cancelled or the stream ends.
+/// Cancel takes effect within ~`POLL` even while the server is silent, and
+/// dropping the sink on return stops the audio.
+fn stream_thread(
+    url: &str,
+    attempt: u64,
+    cancel: &Arc<AtomicBool>,
+    volume: &AtomicU32,
+    factory: SinkFactory,
+    notify: impl Fn(Event),
+) {
+    let connect_failed = |kind| {
+        if !cancel.load(Ordering::Relaxed) {
+            notify(Event::ConnectFailed { attempt, kind });
+        }
+    };
+    let mut reader = ChannelReader {
+        rx: spawn_pump(url.to_string()),
+        cancel: cancel.clone(),
+        pending: Vec::new(),
+        pos: 0,
+    };
+    match reader.next() {
+        Ok(Some(Msg::Head(Ok(status)))) if (200..300).contains(&status) => {}
+        Ok(Some(Msg::Head(Ok(_)))) => return connect_failed(ErrorKind::Unavailable),
+        Ok(Some(Msg::Head(Err(())))) => return connect_failed(ErrorKind::Offline),
+        Ok(_) => return connect_failed(ErrorKind::Unavailable),
+        Err(_) => return, // cancelled
+    }
+    let end = decode_stream(
+        StreamSource::new(reader),
+        move || factory(),
+        volume,
+        cancel,
+        || notify(Event::Connected { attempt }),
+    );
+    if cancel.load(Ordering::Relaxed) {
+        return;
+    }
+    match end {
+        DecodeEnd::Cancelled => {}
+        DecodeEnd::Unsupported => notify(Event::DecodeFailed { attempt }),
+        DecodeEnd::Io { after_audio: false } => connect_failed(ErrorKind::Unavailable),
+        DecodeEnd::Io { after_audio: true } => notify(Event::StreamDropped { attempt }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::player::decode::tests::{AAC, Counts, MP3, NullSink};
+    use crate::player::{Status, pls::resolve_mirrors};
+    use std::collections::HashMap;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    type Routes = HashMap<String, (u16, Vec<u8>)>;
+
+    /// In-process HTTP server: path -> (status, body). Closes after each response.
+    struct Stub {
+        base: String,
+    }
+
+    impl Stub {
+        /// `build` receives the server's base URL so routes can point back at it.
+        async fn start(build: impl FnOnce(&str) -> Routes) -> Stub {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let base = format!("http://{}", listener.local_addr().unwrap());
+            let routes = build(&base);
+            tokio::spawn(async move {
+                loop {
+                    let Ok((mut sock, _)) = listener.accept().await else {
+                        return;
+                    };
+                    let routes = routes.clone();
+                    tokio::spawn(async move {
+                        let mut req = Vec::new();
+                        let mut b = [0u8; 1024];
+                        while !req.windows(4).any(|w| w == b"\r\n\r\n") {
+                            match sock.read(&mut b).await {
+                                Ok(0) | Err(_) => return,
+                                Ok(n) => req.extend_from_slice(&b[..n]),
+                            }
+                        }
+                        let line = String::from_utf8_lossy(&req);
+                        let path = line.split_whitespace().nth(1).unwrap_or("/").to_string();
+                        let (status, body) = routes.get(&path).cloned().unwrap_or((404, vec![]));
+                        let head = format!(
+                            "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = sock.write_all(head.as_bytes()).await;
+                        let _ = sock.write_all(&body).await;
+                        let _ = sock.shutdown().await;
+                    });
+                }
+            });
+            Stub { base }
+        }
+
+        fn url(&self, path: &str) -> String {
+            format!("{}{path}", self.base)
+        }
+    }
+
+    fn routes(items: &[(&str, u16, &[u8])]) -> Routes {
+        items
+            .iter()
+            .map(|(p, s, b)| (p.to_string(), (*s, b.to_vec())))
+            .collect()
+    }
+
+    fn pls(urls: &[String]) -> Vec<u8> {
+        urls.iter()
+            .enumerate()
+            .map(|(i, u)| format!("File{}={u}\n", i + 1))
+            .collect::<String>()
+            .into_bytes()
+    }
+
+    /// Routes for a feed with one station "s1" whose `.pls` files list the given
+    /// stream paths, plus the stream bodies themselves.
+    fn station_routes(
+        base: &str,
+        mp3_mirrors: &[&str],
+        aac_mirrors: &[&str],
+        streams: &[(&str, u16, &[u8])],
+    ) -> Routes {
+        let channels = serde_json::json!({"channels": [{
+        "id": "s1", "title": "S1", "genre": "ambient", "listeners": "3",
+        "playlists": [
+            {"url": format!("{base}/mp3.pls"), "format": "mp3", "quality": "highest"},
+            {"url": format!("{base}/aac.pls"), "format": "aac", "quality": "highest"},
+        ]}]});
+        let mut r = routes(streams);
+        let urls = |m: &[&str]| pls(&m.iter().map(|p| format!("{base}{p}")).collect::<Vec<_>>());
+        r.insert(
+            "/channels.json".into(),
+            (200, channels.to_string().into_bytes()),
+        );
+        r.insert("/mp3.pls".into(), (200, urls(mp3_mirrors)));
+        r.insert("/aac.pls".into(), (200, urls(aac_mirrors)));
+        r
+    }
+
+    #[tokio::test]
+    async fn pls_fetch_caches_and_falls_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = reqwest::Client::new();
+        let ok = Stub::start(|_| {
+            routes(&[(
+                "/s.pls",
+                200,
+                b"[playlist]\nFile1=http://a/1\nFile2=http://b/2\n",
+            )])
+        })
+        .await;
+        let got = resolve_mirrors(&client, &ok.url("/s.pls"), dir.path(), "s1", Quality::Mp3).await;
+        assert_eq!(
+            got,
+            Ok(vec!["http://a/1".to_string(), "http://b/2".to_string()])
+        );
+
+        // Server error: the cached list is used.
+        let broken = Stub::start(|_| routes(&[("/s.pls", 500, b"")])).await;
+        let again = resolve_mirrors(
+            &client,
+            &broken.url("/s.pls"),
+            dir.path(),
+            "s1",
+            Quality::Mp3,
+        )
+        .await;
+        assert_eq!(again, got);
+
+        // The other quality has its own (empty) cache.
+        let aac = resolve_mirrors(
+            &client,
+            &broken.url("/s.pls"),
+            dir.path(),
+            "s1",
+            Quality::Aac128,
+        )
+        .await;
+        assert_eq!(aac, Err(ErrorKind::Unavailable));
+
+        // Empty .pls with no cache.
+        let empty = Stub::start(|_| routes(&[("/s.pls", 200, b"nothing here")])).await;
+        let r = resolve_mirrors(
+            &client,
+            &empty.url("/s.pls"),
+            dir.path(),
+            "other",
+            Quality::Mp3,
+        )
+        .await;
+        assert_eq!(r, Err(ErrorKind::Unavailable));
+
+        // Nothing listening and no cache: offline.
+        let r = resolve_mirrors(
+            &client,
+            "http://127.0.0.1:1/s.pls",
+            dir.path(),
+            "other",
+            Quality::Mp3,
+        )
+        .await;
+        assert_eq!(r, Err(ErrorKind::Offline));
+    }
+
+    struct Rig {
+        player: Player,
+        snaps: Arc<Mutex<Vec<PlayerState>>>,
+        counts: Counts,
+        _dir: tempfile::TempDir,
+    }
+
+    async fn rig(stub: &Stub) -> Rig {
+        let dir = tempfile::tempdir().unwrap();
+        let feed = Arc::new(Feed::new(stub.url("/channels.json"), dir.path()));
+        assert!(feed.refresh().await.unwrap());
+        let counts = Counts::default();
+        let c = counts.clone();
+        let factory: SinkFactory =
+            Arc::new(move || Ok(Box::new(NullSink(c.clone())) as Box<dyn PcmSink>));
+        let snaps = Arc::new(Mutex::new(Vec::new()));
+        let s2 = snaps.clone();
+        let player = Player::new(feed, dir.path(), Handle::current(), factory, move |s| {
+            s2.lock().unwrap().push(s)
+        });
+        Rig {
+            player,
+            snaps,
+            counts,
+            _dir: dir,
+        }
+    }
+
+    /// Waits until a snapshot emitted at index >= `from` satisfies `pred`.
+    async fn wait_for(rig: &Rig, from: usize, pred: impl Fn(&PlayerState) -> bool) {
+        for _ in 0..200 {
+            if rig.snaps.lock().unwrap()[from..].iter().any(&pred) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        panic!("timed out; snapshots: {:?}", rig.snaps.lock().unwrap());
+    }
+
+    fn is_playing(s: &PlayerState) -> bool {
+        s.status == Status::Playing
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn plays_mp3_through_second_mirror_then_switches_to_aac() {
+        let stub = Stub::start(|base| {
+            station_routes(
+                base,
+                &["/dead", "/mp3"],
+                &["/aac"],
+                &[("/mp3", 200, MP3), ("/aac", 200, AAC), ("/dead", 404, b"")],
+            )
+        })
+        .await;
+        let rig = rig(&stub).await;
+
+        assert!(rig.player.play("nope").is_err());
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, 0, is_playing).await;
+        assert!(*rig.counts.samples.lock().unwrap() > 0);
+        assert_eq!(
+            rig.snaps.lock().unwrap()[0].status,
+            Status::Connecting {
+                reconnecting: false
+            }
+        );
+
+        // Switching quality reconnects on AAC and plays.
+        let from = rig.snaps.lock().unwrap().len();
+        rig.player.set_quality(Quality::Aac128);
+        wait_for(&rig, from, |s| {
+            s.quality == Quality::Aac128 && is_playing(s)
+        })
+        .await;
+
+        rig.player.set_volume(0.25);
+        assert_eq!(rig.player.state().volume, 0.25);
+        rig.player.stop();
+        let st = rig.player.state();
+        assert_eq!(st.status, Status::Stopped);
+        assert_eq!(st.station_id.as_deref(), Some("s1"));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn all_mirrors_dead_ends_in_unavailable() {
+        let stub = Stub::start(|base| {
+            station_routes(base, &["/dead", "/dead"], &[], &[("/dead", 404, b"")])
+        })
+        .await;
+        let rig = rig(&stub).await;
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, 0, |s| {
+            matches!(
+                s.status,
+                Status::Error {
+                    error_kind: ErrorKind::Unavailable,
+                    ..
+                }
+            )
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn undecodable_stream_is_unsupported() {
+        let stub = Stub::start(|base| {
+            station_routes(base, &["/junk"], &[], &[("/junk", 200, &[0x42u8; 20000])])
+        })
+        .await;
+        let rig = rig(&stub).await;
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, 0, |s| {
+            matches!(
+                s.status,
+                Status::Error {
+                    error_kind: ErrorKind::Unsupported,
+                    ..
+                }
+            )
+        })
+        .await;
+    }
+
+    /// Raw TCP server that accepts, optionally sends `prefix`, then stays silent.
+    fn silent_server(prefix: Vec<u8>) -> String {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/s", l.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let mut held = Vec::new();
+            for sock in l.incoming().flatten() {
+                let mut sock = sock;
+                let mut b = [0u8; 1024];
+                let _ = std::io::Read::read(&mut sock, &mut b);
+                let _ = std::io::Write::write_all(&mut sock, &prefix);
+                held.push(sock); // never answer further, never close
+            }
+        });
+        url
+    }
+
+    #[test]
+    fn cancel_interrupts_a_stalled_connection_promptly() {
+        let mut head = b"HTTP/1.1 200 OK\r\nContent-Length: 10000000\r\n\r\n".to_vec();
+        head.extend_from_slice(&MP3[..6000]);
+        for (name, prefix) in [("no response", Vec::new()), ("mid-stream", head)] {
+            let url = silent_server(prefix);
+            let cancel = Arc::new(AtomicBool::new(false));
+            let (done_tx, done_rx) = mpsc::channel();
+            let c = cancel.clone();
+            std::thread::spawn(move || {
+                let counts = Counts::default();
+                let factory: SinkFactory =
+                    Arc::new(move || Ok(Box::new(NullSink(counts.clone())) as Box<dyn PcmSink>));
+                stream_thread(&url, 1, &c, &AtomicU32::new(0), factory, |_| {});
+                let _ = done_tx.send(());
+            });
+            std::thread::sleep(Duration::from_millis(400));
+            assert!(done_rx.try_recv().is_err(), "{name}: exited before cancel");
+            cancel.store(true, Ordering::Relaxed);
+            done_rx
+                .recv_timeout(Duration::from_secs(2))
+                .unwrap_or_else(|_| panic!("{name}: thread still alive after cancel"));
+        }
+    }
+}

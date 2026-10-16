@@ -11,6 +11,10 @@ use tauri::{Emitter, Manager, WindowEvent};
 use tokio::sync::watch;
 
 use feed::{Feed, Schedule};
+use player::{
+    Player, SinkFactory,
+    decode::{PcmSink, RodioSink},
+};
 
 fn window_visible(w: &tauri::Window) -> bool {
     w.is_visible().unwrap_or(true) && !w.is_minimized().unwrap_or(false)
@@ -21,12 +25,31 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::get_stations,
-            commands::refresh_stations
+            commands::refresh_stations,
+            commands::get_player_state,
+            commands::play,
+            commands::stop,
+            commands::set_volume,
+            commands::set_quality
         ])
         .setup(|app| {
             let cache_dir = app.path().app_cache_dir()?;
             let feed = Arc::new(Feed::new(feed::FEED_URL, &cache_dir));
             app.manage(feed.clone());
+
+            let emitter = app.handle().clone();
+            let sink: SinkFactory =
+                Arc::new(|| RodioSink::open().map(|s| Box::new(s) as Box<dyn PcmSink>));
+            let player = Player::new(
+                feed.clone(),
+                &cache_dir,
+                tauri::async_runtime::handle().inner().clone(),
+                sink,
+                move |state| {
+                    let _ = emitter.emit(commands::PLAYER_STATE, state);
+                },
+            );
+            app.manage(player);
 
             // Refresh loop runs only while the main window is visible and not minimised.
             // The tray slice (issue 07) must send false/true on the managed

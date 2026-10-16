@@ -30,3 +30,11 @@ export const getStations = () => invoke<StationsSnapshot>("get_stations");
 export const refreshStations = () => invoke<StationsSnapshot>("refresh_stations");
 export const onStationsUpdated = (cb: (s: StationsSnapshot) => void): Promise<UnlistenFn> =>
   listen<StationsSnapshot>("stations-updated", (e) => cb(e.payload));
+
+export const getPlayerState = () => invoke<PlayerState>("get_player_state");
+export const play = (stationId: string) => invoke<void>("play", { stationId });
+export const stop = () => invoke<void>("stop");
+export const setVolume = (volume: number) => invoke<void>("set_volume", { volume });
+export const setQuality = (quality: Quality) => invoke<void>("set_quality", { quality });
+export const onPlayerState = (cb: (s: PlayerState) => void): Promise<UnlistenFn> =>
+  listen<PlayerState>("player-state", (e) => cb(e.payload));

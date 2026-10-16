@@ -2,9 +2,15 @@
   import { onMount } from "svelte";
   import type { Station } from "../lib/api";
   import { filterByGenre, genresOf } from "../lib/genres";
+  import { playerStore } from "../lib/player.svelte";
   import { stationsStore } from "../lib/stations.svelte";
+  import NowPlayingBar from "./NowPlayingBar.svelte";
 
-  let { onopenplayer, store = stationsStore }: { onopenplayer?: () => void; store?: typeof stationsStore } = $props();
+  let { onopenplayer, store = stationsStore, player = playerStore }: {
+    onopenplayer?: () => void;
+    store?: typeof stationsStore;
+    player?: typeof playerStore;
+  } = $props();
 
   let genre: string | null = $state(null);
   let failed: Set<string> = $state(new Set());
@@ -15,10 +21,16 @@
 
   onMount(() => {
     store.init().catch(() => {}); // a later mount retries
+    player.init().catch(() => {});
   });
 
-  // Playback arrives in issue 03; for now a Tile click does nothing.
-  function onPlay(_station: Station) {}
+  function onPlay(station: Station) {
+    player.play(station.id).catch(() => {});
+    onopenplayer?.();
+  }
+
+  const activeId = $derived(player.state.stationId);
+  const activeKind = $derived(player.state.status.kind);
 </script>
 
 <main>
@@ -39,22 +51,28 @@
     <ul class="grid">
       {#each filterByGenre(store.stations, selected) as s (s.id)}
         <li>
-          <button class="tile" onclick={() => onPlay(s)} aria-label={`Play ${s.title}`}>
+          <button class="tile" class:active={s.id === activeId} aria-current={s.id === activeId ? "true" : undefined} onclick={() => onPlay(s)} aria-label={`Play ${s.title}`}>
             {#if failed.has(s.largeImage)}
               <span class="fallback">{s.title}</span>
             {:else}
               <img src={s.largeImage} alt={s.title} loading="lazy" onerror={() => (failed = new Set(failed).add(s.largeImage))} />
             {/if}
             <span class="play" aria-hidden="true">&#9654;</span>
+            {#if s.id === activeId}
+              <span class="badge" data-testid="badge" data-status={activeKind} title={activeKind}>
+                {#if activeKind === "error"}&#9888;{:else if activeKind === "connecting"}<i class="dot"></i>{:else if activeKind === "playing"}<i class="eq"><b></b><b></b><b></b></i>{:else}<i class="dot still"></i>{/if}
+              </span>
+            {/if}
           </button>
         </li>
       {/each}
     </ul>
   {/if}
 </main>
+<NowPlayingBar {onopenplayer} {player} stations={store} />
 
 <style>
-  main { padding: var(--size-4); }
+  main { padding: var(--size-4); padding-block-end: var(--size-10); }
   .empty { display: grid; justify-items: center; gap: var(--size-3); margin-block: var(--size-10); }
   .chips { display: flex; flex-wrap: wrap; gap: var(--size-2); margin-block-end: var(--size-4); }
   .chip {
@@ -89,5 +107,19 @@
     font-size: var(--font-size-6); color: white;
     background: rgb(0 0 0 / 0.45); opacity: 0; transition: opacity 0.15s;
   }
+  .tile.active { outline: 3px solid var(--indigo-5); outline-offset: -3px; }
+  .badge {
+    position: absolute; inset-block-end: var(--size-2); inset-inline-end: var(--size-2);
+    padding: var(--size-1) var(--size-2); border-radius: var(--radius-round);
+    background: rgb(0 0 0 / 0.7); color: white; line-height: 1;
+  }
+  .dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; background: currentColor; animation: pulse 1s ease-in-out infinite; }
+  .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 1em; }
+  .eq b { width: 3px; background: currentColor; animation: eq 0.9s ease-in-out infinite; }
+  .eq b:nth-child(2) { animation-delay: 0.2s; }
+  .eq b:nth-child(3) { animation-delay: 0.4s; }
+  .dot.still { animation: none; }
+  @keyframes pulse { 50% { opacity: 0.25; } }
+  @keyframes eq { 0%, 100% { height: 20%; } 50% { height: 100%; } }
   .tile:hover .play, .tile:focus-visible .play { opacity: 1; }
 </style>
