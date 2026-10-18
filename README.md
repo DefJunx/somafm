@@ -73,7 +73,7 @@ Issues and pull requests are welcome. Before opening a PR, run `pnpm check` and 
 
 ## License
 
-No license file is included in this repository yet, so no license is currently granted. A license will be added.
+Released under the [MIT License](LICENSE). You are free to use, modify and distribute this software, provided the copyright notice and license text are retained (attribution to DefJunx).
 
 ## Acknowledgements
 
