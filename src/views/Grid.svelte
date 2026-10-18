@@ -178,13 +178,18 @@
   .skeleton .art, .skeleton .line {
     display: block; border-radius: var(--radius-control);
     background: linear-gradient(90deg, var(--surface-raised) 25%, var(--surface-control-strong) 50%, var(--surface-raised) 75%) 0 0 / 200% 100%;
-    animation: shimmer 1.5s linear infinite;
+    animation: shimmer 1.1s ease-in-out infinite;
   }
+  .skeleton { animation: skeleton-in 0.4s var(--motion-easing) both, breathe 1.8s ease-in-out infinite; }
+  .skeleton:nth-child(3n + 2) { animation-delay: 0.06s, 0.25s; }
+  .skeleton:nth-child(3n) { animation-delay: 0.12s, 0.5s; }
   .skeleton .art { aspect-ratio: 1; }
   .skeleton .line { height: 1em; }
   .skeleton .short { width: 60%; }
   @keyframes shimmer { to { background-position: -200% 0; } }
+  @keyframes breathe { 50% { opacity: 0.6; } }
+  @keyframes skeleton-in { from { opacity: 0; transform: translateY(6px); } }
   @media (prefers-reduced-motion: reduce) {
-    .skeleton .art, .skeleton .line, .dot { animation: none; }
+    .skeleton, .skeleton .art, .skeleton .line, .dot { animation: none; }
   }
 </style>
