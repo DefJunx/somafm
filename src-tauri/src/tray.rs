@@ -155,13 +155,26 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .build()
 }
 
+/// Runs `f` on a worker thread, never inline on the caller.
+///
+/// `run_on_main_thread` executes inline when already on the main thread, and
+/// sync Tauri commands run there while `Player` holds its core lock around
+/// `emit`. A listener that rebuilt the menu inline would re-lock the core and
+/// deadlock the app, so every refresh hops through here first.
+fn run_deferred(f: impl FnOnce() + Send + 'static) {
+    tauri::async_runtime::spawn_blocking(f);
+}
+
 /// Rebuilds the tray menu from current state (on the main thread).
 pub fn refresh(app: &AppHandle) {
     let handle = app.clone();
-    let _ = app.run_on_main_thread(move || {
-        if let (Some(tray), Ok(menu)) = (handle.tray_by_id(TRAY_ID), build_menu(&handle)) {
-            let _ = tray.set_menu(Some(menu));
-        }
+    run_deferred(move || {
+        let h = handle.clone();
+        let _ = handle.run_on_main_thread(move || {
+            if let (Some(tray), Ok(menu)) = (h.tray_by_id(TRAY_ID), build_menu(&h)) {
+                let _ = tray.set_menu(Some(menu));
+            }
+        });
     });
 }
 
@@ -371,6 +384,16 @@ mod tests {
             toggle_action(&state(Status::Stopped, None, None)),
             ToggleAction::Nothing
         );
+    }
+
+    #[test]
+    fn refresh_work_never_runs_on_the_calling_thread() {
+        // Regression: an inline refresh re-locked the Player core from inside
+        // its own emit (main thread, sync command) and froze the app.
+        let (tx, rx) = std::sync::mpsc::channel();
+        run_deferred(move || tx.send(std::thread::current().id()).unwrap());
+        let ran_on = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        assert_ne!(ran_on, std::thread::current().id());
     }
 
     #[test]

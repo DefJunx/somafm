@@ -1,6 +1,6 @@
 # 07 Tray & close-to-tray
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 04, 06
 
 ## Goal
