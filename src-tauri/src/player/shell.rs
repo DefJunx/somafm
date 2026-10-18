@@ -23,7 +23,28 @@ use crate::feed::Feed;
 pub type SinkFactory = Arc<dyn Fn() -> Result<Box<dyn PcmSink>, String> + Send + Sync>;
 type Emit = Box<dyn Fn(PlayerState) + Send + Sync>;
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Network time limits (spec 5.5). Injectable so tests need not wait real seconds.
+#[derive(Clone, Copy, Debug)]
+pub struct Timeouts {
+    /// Per Mirror: TCP + TLS + first audio bytes.
+    pub connect: Duration,
+    /// While playing: no bytes for this long is a drop.
+    pub stall: Duration,
+}
+
+impl Default for Timeouts {
+    fn default() -> Self {
+        Self {
+            connect: Duration::from_secs(10),
+            stall: Duration::from_secs(15),
+        }
+    }
+}
+
+/// The reqwest connect timeout fires at `connect`; the reader's own limit waits a
+/// little longer so a network-level failure is reported by the pump (as `Offline`),
+/// not pre-empted by the reader (which means "answered but silent").
+const CONNECT_GRACE: Duration = Duration::from_millis(500);
 
 #[derive(Default)]
 struct ResolvedMirrors {
@@ -34,6 +55,7 @@ struct ResolvedMirrors {
 #[derive(Default)]
 struct Active {
     resolve: Option<JoinHandle<()>>,
+    timer: Option<JoinHandle<()>>,
     cancel: Option<Arc<AtomicBool>>,
 }
 
@@ -45,6 +67,7 @@ struct Inner {
     rt: Handle,
     emit: Emit,
     sink_factory: SinkFactory,
+    timeouts: Timeouts,
     volume: Arc<AtomicU32>,
     /// Mirrors resolved for connection attempt `attempt`.
     mirrors: Mutex<ResolvedMirrors>,
@@ -64,6 +87,17 @@ impl Player {
         sink_factory: SinkFactory,
         emit: impl Fn(PlayerState) + Send + Sync + 'static,
     ) -> Self {
+        Self::with_timeouts(feed, cache_dir, rt, sink_factory, Timeouts::default(), emit)
+    }
+
+    pub fn with_timeouts(
+        feed: Arc<Feed>,
+        cache_dir: &Path,
+        rt: Handle,
+        sink_factory: SinkFactory,
+        timeouts: Timeouts,
+        emit: impl Fn(PlayerState) + Send + Sync + 'static,
+    ) -> Self {
         let state = PlayerState::default();
         Self {
             inner: Arc::new(Inner {
@@ -78,6 +112,7 @@ impl Player {
                 rt,
                 emit: Box::new(emit),
                 sink_factory,
+                timeouts,
                 mirrors: Mutex::new(ResolvedMirrors::default()),
                 active: Mutex::new(Active::default()),
             }),
@@ -130,8 +165,21 @@ impl Inner {
                 if let Some(h) = active.resolve.take() {
                     h.abort();
                 }
+                if let Some(h) = active.timer.take() {
+                    h.abort();
+                }
                 if let Some(c) = active.cancel.take() {
                     c.store(true, Ordering::Relaxed);
+                }
+            }
+            Effect::ArmTimer { attempt, at } => {
+                let this = self.clone();
+                let handle = self.rt.spawn(async move {
+                    tokio::time::sleep_until(tokio::time::Instant::from_std(at)).await;
+                    this.dispatch(Event::TimerFired { attempt });
+                });
+                if let Some(old) = self.active.lock().unwrap().timer.replace(handle) {
+                    old.abort();
                 }
             }
             Effect::Resolve {
@@ -162,12 +210,13 @@ impl Inner {
                 let this = self.clone();
                 let volume = self.volume.clone();
                 let factory = self.sink_factory.clone();
+                let timeouts = self.timeouts;
                 std::thread::spawn(move || {
                     let notify = move |e: Event| this.dispatch(e);
                     match url {
-                        Some(url) => {
-                            stream_thread(&url, attempt, &cancel, &volume, factory, notify)
-                        }
+                        Some(url) => stream_thread(
+                            &url, attempt, &cancel, &volume, timeouts, factory, notify,
+                        ),
                         None => notify(Event::ConnectFailed {
                             attempt,
                             kind: ErrorKind::Unavailable,
@@ -204,11 +253,11 @@ enum Msg {
 
 /// Does the blocking HTTP work on its own thread so the decode thread can poll
 /// `cancel` while the network is silent. It exits when the receiver is dropped.
-fn spawn_pump(url: String) -> mpsc::Receiver<Msg> {
+fn spawn_pump(url: String, connect: Duration) -> mpsc::Receiver<Msg> {
     let (tx, rx) = mpsc::sync_channel(16);
     std::thread::spawn(move || {
         let client = reqwest::blocking::Client::builder()
-            .connect_timeout(CONNECT_TIMEOUT)
+            .connect_timeout(connect)
             .timeout(None) // live stream: no total timeout
             .build();
         let resp = client.and_then(|c| c.get(&url).header("Icy-MetaData", "1").send());
@@ -248,11 +297,16 @@ fn spawn_pump(url: String) -> mpsc::Receiver<Msg> {
 
 const POLL: Duration = Duration::from_millis(100);
 
-/// Reads pump data, waking every `POLL` to check `cancel`. A quiet network is
-/// not a drop here (stall policy is slice 05); only cancel interrupts it.
+/// Reads pump data, waking every `POLL` to check `cancel` and the time limits:
+/// before `connected` is set the whole attempt gets `timeouts.connect`; afterwards
+/// `timeouts.stall` without any bytes fails the read (a drop).
 struct ChannelReader {
     rx: mpsc::Receiver<Msg>,
     cancel: Arc<AtomicBool>,
+    connected: Arc<AtomicBool>,
+    timeouts: Timeouts,
+    started: Instant,
+    last_data: Instant,
     pending: Vec<u8>,
     pos: usize,
 }
@@ -263,8 +317,19 @@ impl ChannelReader {
             if self.cancel.load(Ordering::Relaxed) {
                 return Err(std::io::Error::other("cancelled"));
             }
+            let timed_out = if self.connected.load(Ordering::Relaxed) {
+                self.last_data.elapsed() >= self.timeouts.stall
+            } else {
+                self.started.elapsed() >= self.timeouts.connect + CONNECT_GRACE
+            };
+            if timed_out {
+                return Err(std::io::ErrorKind::TimedOut.into());
+            }
             match self.rx.recv_timeout(POLL) {
-                Ok(m) => return Ok(Some(m)),
+                Ok(m) => {
+                    self.last_data = Instant::now();
+                    return Ok(Some(m));
+                }
                 Err(mpsc::RecvTimeoutError::Timeout) => {}
                 Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(None),
             }
@@ -298,6 +363,7 @@ fn stream_thread(
     attempt: u64,
     cancel: &Arc<AtomicBool>,
     volume: &AtomicU32,
+    timeouts: Timeouts,
     factory: SinkFactory,
     notify: impl Fn(Event) + Send + Sync + 'static,
 ) {
@@ -307,9 +373,14 @@ fn stream_thread(
             notify(Event::ConnectFailed { attempt, kind });
         }
     };
+    let connected = Arc::new(AtomicBool::new(false));
     let mut reader = ChannelReader {
-        rx: spawn_pump(url.to_string()),
+        rx: spawn_pump(url.to_string(), timeouts.connect),
         cancel: cancel.clone(),
+        connected: connected.clone(),
+        timeouts,
+        started: Instant::now(),
+        last_data: Instant::now(),
         pending: Vec::new(),
         pos: 0,
     };
@@ -318,7 +389,7 @@ fn stream_thread(
         Ok(Some(Msg::Head(Ok(_)))) => return connect_failed(ErrorKind::Unavailable),
         Ok(Some(Msg::Head(Err(())))) => return connect_failed(ErrorKind::Offline),
         Ok(_) => return connect_failed(ErrorKind::Unavailable),
-        Err(_) => return, // cancelled
+        Err(_) => return connect_failed(ErrorKind::Unavailable), // timed out (no-op if cancelled)
     };
     // ICY stripping sits between the network reader and symphonia, so the
     // decoder (and its pre-audio budget) only ever sees audio bytes.
@@ -333,7 +404,10 @@ fn stream_thread(
         cancel,
         {
             let notify = notify.clone();
-            move || notify(Event::Connected { attempt })
+            move || {
+                connected.store(true, Ordering::Relaxed);
+                notify(Event::Connected { attempt })
+            }
         },
     );
     if cancel.load(Ordering::Relaxed) {
@@ -423,18 +497,27 @@ mod tests {
     /// Routes for a feed with one station "s1" whose `.pls` files list the given
     /// stream paths, plus the stream bodies themselves.
     fn station_routes(base: &str, mp3_mirrors: &[&str], streams: &[(&str, u16, &[u8])]) -> Routes {
+        let urls: Vec<String> = mp3_mirrors.iter().map(|p| format!("{base}{p}")).collect();
+        station_routes_abs(base, &urls, streams)
+    }
+
+    /// Like `station_routes`, with Mirrors given as full URLs (e.g. other servers).
+    fn station_routes_abs(
+        base: &str,
+        mirror_urls: &[String],
+        streams: &[(&str, u16, &[u8])],
+    ) -> Routes {
         let channels = serde_json::json!({"channels": [{
         "id": "s1", "title": "S1", "genre": "ambient", "listeners": "3",
         "playlists": [
             {"url": format!("{base}/mp3.pls"), "format": "mp3", "quality": "highest"},
         ]}]});
         let mut r = routes(streams);
-        let urls = |m: &[&str]| pls(&m.iter().map(|p| format!("{base}{p}")).collect::<Vec<_>>());
         r.insert(
             "/channels.json".into(),
             (200, channels.to_string().into_bytes()),
         );
-        r.insert("/mp3.pls".into(), (200, urls(mp3_mirrors)));
+        r.insert("/mp3.pls".into(), (200, pls(mirror_urls)));
         r
     }
 
@@ -479,6 +562,10 @@ mod tests {
     }
 
     async fn rig(stub: &Stub) -> Rig {
+        rig_with(stub, Timeouts::default()).await
+    }
+
+    async fn rig_with(stub: &Stub, timeouts: Timeouts) -> Rig {
         let dir = tempfile::tempdir().unwrap();
         let feed = Arc::new(Feed::new(stub.url("/channels.json"), dir.path()));
         assert!(feed.refresh().await.unwrap());
@@ -488,9 +575,14 @@ mod tests {
             Arc::new(move || Ok(Box::new(NullSink(c.clone())) as Box<dyn PcmSink>));
         let snaps = Arc::new(Mutex::new(Vec::new()));
         let s2 = snaps.clone();
-        let player = Player::new(feed, dir.path(), Handle::current(), factory, move |s| {
-            s2.lock().unwrap().push(s)
-        });
+        let player = Player::with_timeouts(
+            feed,
+            dir.path(),
+            Handle::current(),
+            factory,
+            timeouts,
+            move |s| s2.lock().unwrap().push(s),
+        );
         Rig {
             player,
             snaps,
@@ -601,6 +693,155 @@ mod tests {
         url
     }
 
+    /// Serves `/channels.json` and a `.pls` listing `mirrors`; returns the rig.
+    async fn rig_for_mirrors(mirrors: Vec<String>, timeouts: Timeouts) -> (Stub, Rig) {
+        let stub = Stub::start(|base| station_routes_abs(base, &mirrors, &[])).await;
+        let r = rig_with(&stub, timeouts).await;
+        (stub, r)
+    }
+
+    const FAST: Timeouts = Timeouts {
+        connect: Duration::from_millis(400),
+        stall: Duration::from_millis(500),
+    };
+
+    fn error_kind(s: &PlayerState) -> Option<ErrorKind> {
+        match s.status {
+            Status::Error { error_kind, .. } => Some(error_kind),
+            _ => None,
+        }
+    }
+
+    fn is_reconnecting(s: &PlayerState) -> bool {
+        s.status == Status::Connecting { reconnecting: true }
+    }
+
+    fn http_head() -> Vec<u8> {
+        b"HTTP/1.1 200 OK\r\nContent-Length: 10000000\r\n\r\n".to_vec()
+    }
+
+    /// Raw server: `script(connection_index, socket)` runs on its own thread after
+    /// the request head has been read.
+    fn scripted_server(
+        script: impl Fn(usize, std::net::TcpStream) + Send + Sync + 'static,
+    ) -> String {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/s", l.local_addr().unwrap());
+        let script = Arc::new(script);
+        std::thread::spawn(move || {
+            for (i, mut sock) in l.incoming().flatten().enumerate() {
+                let script = script.clone();
+                std::thread::spawn(move || {
+                    let mut req = Vec::new();
+                    let mut b = [0u8; 1024];
+                    while !req.windows(4).any(|w| w == b"\r\n\r\n") {
+                        match std::io::Read::read(&mut sock, &mut b) {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => req.extend_from_slice(&b[..n]),
+                        }
+                    }
+                    script(i, sock);
+                });
+            }
+        });
+        url
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn first_connect_to_a_silent_server_times_out_as_unavailable() {
+        let (_stub, rig) = rig_for_mirrors(vec![silent_server(Vec::new())], FAST).await;
+        let started = Instant::now();
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, 0, |s| error_kind(s) == Some(ErrorKind::Unavailable)).await;
+        assert!(
+            started.elapsed() >= FAST.connect,
+            "failed before the timeout"
+        );
+        assert!(!rig.snaps.lock().unwrap().iter().any(is_reconnecting));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn first_connect_refused_is_offline_without_retrying() {
+        let (_stub, rig) = rig_for_mirrors(vec!["http://127.0.0.1:1/s".into()], FAST).await;
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, 0, |s| error_kind(s) == Some(ErrorKind::Offline)).await;
+        assert!(!rig.snaps.lock().unwrap().iter().any(is_reconnecting));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn mid_stream_cut_reconnects_to_the_same_mirror() {
+        // Every connection serves the whole tone, then the server closes: a cut.
+        let url = scripted_server(|_, mut sock| {
+            let mut head =
+                format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", MP3.len()).into_bytes();
+            head.extend_from_slice(MP3);
+            let _ = std::io::Write::write_all(&mut sock, &head);
+        });
+        let (_stub, rig) = rig_for_mirrors(vec![url], FAST).await;
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, 0, is_reconnecting).await;
+        let n = rig.snaps.lock().unwrap().len();
+        wait_for(&rig, n, is_playing).await; // the same Mirror serves again
+        assert!(
+            !rig.snaps
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|s| error_kind(s).is_some())
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stall_while_playing_is_a_drop_and_reconnecting_survives_until_stop() {
+        // First connection: head + some audio, then silence. Later ones: 404.
+        let url = scripted_server(|i, mut sock| {
+            if i == 0 {
+                let mut out = http_head();
+                out.extend_from_slice(&MP3[..6000]);
+                let _ = std::io::Write::write_all(&mut sock, &out);
+                std::thread::sleep(Duration::from_secs(30));
+            } else {
+                let _ = std::io::Write::write_all(
+                    &mut sock,
+                    b"HTTP/1.1 404 X\r\nContent-Length: 0\r\n\r\n",
+                );
+            }
+        });
+        let (_stub, rig) = rig_for_mirrors(vec![url], FAST).await;
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, 0, is_playing).await;
+        let n = rig.snaps.lock().unwrap().len();
+        wait_for(&rig, n, is_reconnecting).await; // stall = drop
+        // The failing reconnect backs off instead of erroring out.
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        assert!(is_reconnecting(&rig.player.state()));
+        rig.player.stop();
+        assert_eq!(rig.player.state().status, Status::Stopped);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn short_underrun_causes_no_status_change() {
+        let url = scripted_server(|_, mut sock| {
+            let mut out = http_head();
+            out.extend_from_slice(&MP3[..6000]);
+            let _ = std::io::Write::write_all(&mut sock, &out);
+            std::thread::sleep(Duration::from_millis(250)); // shorter than the stall limit
+            let _ = std::io::Write::write_all(&mut sock, &MP3[6000..12000]);
+            std::thread::sleep(Duration::from_secs(30));
+        });
+        let (_stub, rig) = rig_for_mirrors(vec![url], FAST).await;
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, 0, is_playing).await;
+        let n = rig.snaps.lock().unwrap().len();
+        tokio::time::sleep(Duration::from_millis(400)).await; // gap + resume, before a stall
+        assert_eq!(
+            rig.snaps.lock().unwrap().len(),
+            n,
+            "no snapshot during underrun"
+        );
+        assert!(is_playing(&rig.player.state()));
+    }
+
     #[test]
     fn cancel_interrupts_a_stalled_connection_promptly() {
         let mut head = b"HTTP/1.1 200 OK\r\nContent-Length: 10000000\r\n\r\n".to_vec();
@@ -614,7 +855,15 @@ mod tests {
                 let counts = Counts::default();
                 let factory: SinkFactory =
                     Arc::new(move || Ok(Box::new(NullSink(counts.clone())) as Box<dyn PcmSink>));
-                stream_thread(&url, 1, &c, &AtomicU32::new(0), factory, |_| {});
+                stream_thread(
+                    &url,
+                    1,
+                    &c,
+                    &AtomicU32::new(0),
+                    Timeouts::default(),
+                    factory,
+                    |_| {},
+                );
                 let _ = done_tx.send(());
             });
             std::thread::sleep(Duration::from_millis(400));
@@ -642,9 +891,15 @@ mod tests {
         let factory: SinkFactory =
             Arc::new(move || Ok(Box::new(NullSink(k.clone())) as Box<dyn PcmSink>));
         let k2 = counts.clone();
-        stream_thread(&url, 1, &cancel, &AtomicU32::new(0), factory, move |e| {
-            eprintln!("event: {e:?} samples={}", k2.samples.lock().unwrap())
-        });
+        stream_thread(
+            &url,
+            1,
+            &cancel,
+            &AtomicU32::new(0),
+            Timeouts::default(),
+            factory,
+            move |e| eprintln!("event: {e:?} samples={}", k2.samples.lock().unwrap()),
+        );
         eprintln!("samples={}", counts.samples.lock().unwrap());
     }
 
@@ -683,6 +938,7 @@ mod tests {
             1,
             &Arc::new(AtomicBool::new(false)),
             &AtomicU32::new(0),
+            Timeouts::default(),
             factory,
             move |e| e2.lock().unwrap().push(e),
         );

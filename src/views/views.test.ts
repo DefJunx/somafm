@@ -236,3 +236,67 @@ it("Player screen shows both now-playing shapes and clears it", async () => {
   expect(document.querySelector(".now")?.textContent).toBe("");
   expect(store.state.nowPlaying).toBeNull();
 });
+
+const errState = (errorKind: "offline" | "unavailable" | "unsupported", message: string) =>
+  ps({ stationId: "a", status: { kind: "error", errorKind, message } });
+
+const errorMessages = [
+  ["offline", "You're offline"],
+  ["unavailable", "Station unavailable"],
+  ["unsupported", "Can't play this stream"],
+] as const;
+
+it("Player screen shows the message per error kind and Retry plays the loaded Station", async () => {
+  const calls: Call[] = [];
+  await renderPlayer(errState("offline", "You're offline"), calls);
+  for (const [kind, message] of errorMessages) {
+    await emit("player-state", errState(kind, message));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe(message));
+    expect(document.querySelector(".spinner")).toBeNull();
+  }
+  await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(calls).toContainEqual(["play", { stationId: "a" }]);
+});
+
+it("Player screen shows a spinner while connecting and reconnecting, none otherwise", async () => {
+  await renderPlayer(ps({ stationId: "a", status: { kind: "connecting", reconnecting: false } }));
+  expect(document.querySelector(".spinner")).toBeTruthy();
+  await emit("player-state", ps({ stationId: "a", status: { kind: "connecting", reconnecting: true } }));
+  await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Reconnecting..."));
+  expect(document.querySelector(".spinner")).toBeTruthy();
+  await emit("player-state", ps({ stationId: "a", status: { kind: "playing" } }));
+  await waitFor(() => expect(document.querySelector(".spinner")).toBeNull());
+});
+
+it("bottom bar shows status text per state, even when a track is kept, and Retry plays", async () => {
+  const calls: Call[] = [];
+  const kept = { raw: "X - Y", artist: "X", title: "Y" };
+  ipc({ player: ps({ stationId: "a", status: { kind: "playing" }, nowPlaying: kept }), calls });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  const bar = await screen.findByRole("complementary", { name: "Now playing" });
+  expect(bar.textContent).toContain("X - Y");
+  await emit("player-state", ps({ stationId: "a", status: { kind: "connecting", reconnecting: true }, nowPlaying: kept }));
+  await waitFor(() => expect(bar.textContent).toContain("Reconnecting..."));
+  expect(bar.textContent).not.toContain("X - Y");
+  await emit("player-state", ps({ stationId: "a", status: { kind: "connecting", reconnecting: false } }));
+  await waitFor(() => expect(bar.textContent).toContain("Connecting..."));
+  for (const [kind, message] of errorMessages) {
+    await emit("player-state", { ...errState(kind, message), nowPlaying: kept });
+    await waitFor(() => expect(bar.textContent).toContain(message));
+  }
+  await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(calls).toContainEqual(["play", { stationId: "a" }]);
+});
+
+it("Grid badge pulses while connecting or reconnecting, warns in error, ring stays", async () => {
+  ipc({ player: ps({ stationId: "b", status: { kind: "connecting", reconnecting: true } }) });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  const tile = await screen.findByRole("button", { name: "Play Station b" });
+  await waitFor(() => expect(screen.getByTestId("badge").getAttribute("data-status")).toBe("connecting"));
+  expect(document.querySelector(".badge .dot:not(.still)")).toBeTruthy();
+  await emit("player-state", errState("unavailable", "Station unavailable"));
+  await emit("player-state", ps({ stationId: "b", status: { kind: "error", errorKind: "unsupported", message: "Can't play this stream" } }));
+  await waitFor(() => expect(screen.getByTestId("badge").textContent).toContain("\u26A0"));
+  expect(document.querySelector(".badge .dot")).toBeNull();
+  expect(tile.getAttribute("aria-current")).toBe("true");
+});

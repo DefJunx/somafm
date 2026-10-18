@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { emit } from "@tauri-apps/api/event";
-import { createPlayerStore, initialPlayerState, nowPlayingText, statusText } from "./player.svelte";
+import { createPlayerStore, initialPlayerState, barLineText, nowPlayingText, statusText } from "./player.svelte";
 import type { PlayerState } from "./api";
 
 afterEach(() => clearMocks());
@@ -42,4 +42,12 @@ it("renders status and now-playing text", () => {
   expect(nowPlayingText(st({}), "S")).toBe("");
   expect(nowPlayingText(st({ nowPlaying: { raw: "x - y", artist: "x", title: "y" } }), "S")).toBe("x - y");
   expect(nowPlayingText(st({ nowPlaying: { raw: "y", artist: null, title: "y" } }), "S")).toBe("S - y");
+});
+
+it("bar line prefers connecting/error status over the kept track", () => {
+  const np = { raw: "x - y", artist: "x", title: "y" };
+  expect(barLineText(st({ status: { kind: "playing" }, nowPlaying: np }), "S")).toBe("x - y");
+  expect(barLineText(st({ stationId: "a" }), "S")).toBe("Paused");
+  expect(barLineText(st({ status: { kind: "connecting", reconnecting: true }, nowPlaying: np }), "S")).toBe("Reconnecting...");
+  expect(barLineText(st({ status: { kind: "error", errorKind: "offline", message: "You're offline" }, nowPlaying: np }), "S")).toBe("You're offline");
 });

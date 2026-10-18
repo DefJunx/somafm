@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { nowPlayingText, playerStore, primaryAction, runPrimaryAction, statusText } from "../lib/player.svelte";
+  import { barLineText, playerStore, primaryAction, runPrimaryAction } from "../lib/player.svelte";
   import { stationsStore } from "../lib/stations.svelte";
 
   let { onopenplayer, player = playerStore, stations = stationsStore }: {
@@ -11,7 +11,7 @@
   const state = $derived(player.state);
   const station = $derived(stations.stations.find((candidate) => candidate.id === state.stationId));
   const title = $derived(station?.title ?? state.stationId ?? "");
-  const line = $derived(nowPlayingText(state, title) || statusText(state));
+  const line = $derived(barLineText(state, title));
   const action = $derived(primaryAction(state));
 </script>
 

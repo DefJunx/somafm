@@ -51,6 +51,14 @@ export function nowPlayingText(s: PlayerState, stationTitle: string): string {
   return np ? `${np.artist ?? stationTitle} - ${np.title}` : "";
 }
 
+/** Bottom-bar second line: connecting and error status win over a kept-across-reconnect track. */
+export function barLineText(s: PlayerState, stationTitle: string): string {
+  const k = s.status.kind;
+  return k === "connecting" || k === "error"
+    ? statusText(s)
+    : nowPlayingText(s, stationTitle) || statusText(s);
+}
+
 export interface PrimaryAction { label: "Stop" | "Play" | "Retry"; busy: boolean }
 
 /** The single transport button: Stop while playing or connecting (`busy` marks connecting; the bar keeps Stop enabled, Player shows a spinner), Retry on error, else Play. */
