@@ -15,3 +15,9 @@
 **Favourite**: A Station the user has starred for quick access.
 
 **Mirror**: One of a Station's interchangeable stream servers listed in its playlist; if one fails, another can be tried.
+
+**Theme**: The app's single dark look, derived from SomaFM's palette (gold headings and links, teal accent) without copying its assets. There is no light variant.
+
+**Skeleton tile**: A placeholder Tile shown in the Grid while Stations are still loading.
+
+**Status badge**: The small marker on a Tile showing whether its Station is playing, paused or in error.
