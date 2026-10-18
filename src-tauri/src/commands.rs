@@ -41,8 +41,17 @@ pub fn play(
     settings: State<'_, SettingsService>,
     station_id: String,
 ) -> Result<(), String> {
-    player.play(&station_id)?;
-    settings.set_last_station(&station_id);
+    play_station(&player, &settings, &station_id)
+}
+
+/// The one play path (webview and tray): load the Station, then persist `lastStationId`.
+pub fn play_station(
+    player: &Player,
+    settings: &SettingsService,
+    station_id: &str,
+) -> Result<(), String> {
+    player.play(station_id)?;
+    settings.set_last_station(station_id);
     Ok(())
 }
 

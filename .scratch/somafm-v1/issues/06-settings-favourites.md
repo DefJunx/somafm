@@ -1,6 +1,6 @@
 # 06 Settings & favourites: store + migrations, persisted prefs, favourites filter chip, window-state
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 03
 
 ## Goal

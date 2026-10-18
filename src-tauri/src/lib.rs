@@ -86,9 +86,8 @@ pub fn run() {
             ));
 
             // Refresh loop runs only while the main window is visible and not minimised.
-            // The tray slice (issue 07) must send false/true on the managed
-            // `watch::Sender<bool>` when hiding/showing to tray: GTK may emit neither
-            // Focused nor Resized.
+            // `tray::set_main_visible` and the close handler send false/true on the
+            // managed `watch::Sender<bool>`: GTK may emit neither Focused nor Resized.
             let initial_visible = app
                 .get_webview_window("main")
                 .is_none_or(|w| window_visible(&w.as_ref().window()));
@@ -108,16 +107,28 @@ pub fn run() {
                 // Focus/resize events fire on minimise/restore/show, so re-evaluate there.
                 let w2 = win.as_ref().window();
                 win.on_window_event(move |ev| {
+                    // Close-to-tray: hide, never destroy; playback continues.
+                    if let WindowEvent::CloseRequested { api, .. } = ev {
+                        api.prevent_close();
+                        let _ = w2.hide();
+                        let _ = tx.send(false);
+                        tray::refresh(w2.app_handle());
+                    }
                     if matches!(ev, WindowEvent::Focused(_) | WindowEvent::Resized(_)) {
                         let _ = tx.send(window_visible(&w2));
                     }
                 });
             }
+            tray::init(app.handle())?;
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                tray::set_main_visible(app, true);
+            }
             if let tauri::RunEvent::Exit = event {
                 // Don't lose a volume change still inside its debounce window.
                 if let Some(s) = app.try_state::<SettingsService>() {
