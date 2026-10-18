@@ -2,11 +2,12 @@
   import { onMount } from "svelte";
   import type { Station } from "../lib/api";
   import { favouritesIn, filterByGenre, genresOf } from "../lib/genres";
-  import { playerStore } from "../lib/player.svelte";
+  import { playerStore, statusLabel } from "../lib/player.svelte";
   import { settingsStore } from "../lib/settings.svelte";
   import { stationsStore } from "../lib/stations.svelte";
   import NowPlayingBar from "./NowPlayingBar.svelte";
   import Icon from "../lib/Icon.svelte";
+  import StatusBadge from "../lib/StatusBadge.svelte";
 
   let { onopenplayer, store = stationsStore, player = playerStore, settings = settingsStore }: {
     onopenplayer?: () => void;
@@ -39,7 +40,6 @@
   }
 
   const SKELETON_COUNT = 12;
-  const STATUS_LABEL = { playing: "Playing", stopped: "Paused", connecting: "Connecting", error: "Error" } as const;
 
   const activeId = $derived(player.state.stationId);
   const activeKind = $derived(player.state.status.kind);
@@ -83,11 +83,7 @@
               <span class="genre">{s.genres.join(", ")}</span>
             </div>
             {#if s.id === activeId}
-              {@const label = STATUS_LABEL[activeKind]}
-              <span class="badge" role="group" data-testid="badge" data-status={activeKind} aria-label={`Status: ${label}`}>
-                {#if activeKind === "error"}<Icon name="warning" />{:else}<i class="dot" class:still={activeKind === "stopped"}></i>{/if}
-                {label}
-              </span>
+              <StatusBadge kind={activeKind} label={statusLabel(player.state)} data-testid="badge" />
             {/if}
           </div>
         </li>
@@ -164,16 +160,6 @@
   .name, .genre { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .name { font-family: var(--font-heading); font-weight: var(--font-weight-6); color: var(--text-primary); }
   .genre { font-size: var(--font-size-0); color: var(--text-muted); }
-  .badge {
-    display: inline-flex; align-items: center; gap: var(--size-1); flex: none;
-    padding: var(--size-1) var(--size-2); border-radius: var(--radius-round);
-    background: var(--surface-control); color: var(--text-primary);
-    font-family: var(--font-data); font-size: var(--font-size-0); line-height: 1;
-  }
-  .badge[data-status="error"] { color: var(--color-heading); }
-  .dot { display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; background: currentColor; animation: pulse 1s ease-in-out infinite; }
-  .dot.still { animation: none; }
-  @keyframes pulse { 50% { opacity: 0.25; } }
   .skeleton { display: grid; gap: var(--size-2); }
   .skeleton .art, .skeleton .line {
     display: block; border-radius: var(--radius-control);
@@ -190,6 +176,6 @@
   @keyframes breathe { 50% { opacity: 0.6; } }
   @keyframes skeleton-in { from { opacity: 0; transform: translateY(6px); } }
   @media (prefers-reduced-motion: reduce) {
-    .skeleton, .skeleton .art, .skeleton .line, .dot { animation: none; }
+    .skeleton, .skeleton .art, .skeleton .line { animation: none; }
   }
 </style>

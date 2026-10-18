@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { nowPlayingText, playerStore, primaryAction, runPrimaryAction, statusText } from "../lib/player.svelte";
+  import { nowPlayingText, playerStore, primaryAction, runPrimaryAction, statusLabel, statusText } from "../lib/player.svelte";
   import { settingsStore } from "../lib/settings.svelte";
   import { stationsStore } from "../lib/stations.svelte";
   import Icon from "../lib/Icon.svelte";
+  import StatusBadge from "../lib/StatusBadge.svelte";
 
   let { onback, player = playerStore, stations = stationsStore, settings = settingsStore }: {
     onback?: () => void;
@@ -53,14 +54,14 @@
       {/if}
     </div>
     <section class="info">
-      <h1>{title}</h1>
+      <h1 {title}>{title}</h1>
       {#if station}
         <p class="desc">{station.description}</p>
         <p class="listeners">{station.listeners} listeners</p>
       {/if}
-      <p class="now">{nowPlayingText(s, title)}</p>
-      <p class="status" role="status">{statusText(s)}</p>
-      <button class="main" onclick={() => runPrimaryAction(player)} disabled={action.busy} aria-busy={action.busy}>
+      <p class="now" title={nowPlayingText(s, title)}>{nowPlayingText(s, title)}</p>
+      <p class="status" role="status"><StatusBadge kind={s.status.kind} label={statusLabel(s)} text={statusText(s) || statusLabel(s)} /></p>
+      <button class="main" class:primary={action.label === "Play"} onclick={() => runPrimaryAction(player)} disabled={action.busy} aria-busy={action.busy}>
         {#if action.busy}
           <span class="spinner" aria-hidden="true"></span>
         {:else}
@@ -101,26 +102,31 @@
   .art img { width: 100%; height: 100%; object-fit: cover; }
   .fallback { font-weight: var(--font-weight-6); padding: var(--size-3); text-align: center; font-family: var(--font-heading); }
   .info { display: grid; gap: var(--size-3); align-content: start; }
-  .info h1 { font-family: var(--font-heading); color: var(--color-heading); margin: 0; }
+  .info h1 {
+    font-family: var(--font-heading); color: var(--color-heading); margin: 0;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+    overflow: hidden; overflow-wrap: anywhere;
+  }
   .desc { color: var(--text-primary); }
-  .now { font-family: var(--font-data); color: var(--text-primary); }
+  .now { font-family: var(--font-data); color: var(--text-primary); margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .listeners { font-family: var(--font-data); color: var(--text-muted); }
-  .status { font-family: var(--font-data); color: var(--text-muted); }
+  .status { margin: 0; min-width: 0; }
+  .back, .main, .fav, .volume button {
+    background: var(--surface-control-strong);
+    color: var(--text-primary);
+  }
+  .back:not(:disabled):hover, .main:not(:disabled):hover, .fav:not(:disabled):hover, .volume button:not(:disabled):hover {
+    background-color: var(--color-accent);
+  }
   .main {
-    background: var(--color-primary);
-    color: white;
     padding: var(--size-3) var(--size-4);
     font-weight: var(--font-weight-6);
     display: flex;
     align-items: center;
     gap: var(--size-2);
   }
-  .main:hover:not(:disabled) {
-    background: var(--color-primary);
-  }
-  .main:disabled {
-    opacity: 0.6;
-  }
+  .main.primary { background: var(--color-primary); color: white; }
+  .main.primary:not(:disabled):hover { background-color: var(--color-primary); filter: brightness(1.1); }
   .fav {
     display: flex;
     align-items: center;

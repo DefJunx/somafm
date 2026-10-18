@@ -46,17 +46,19 @@ export function statusText(s: PlayerState): string {
   }
 }
 
+/** Short Status name for the badge: Playing, Paused, Connecting, Reconnecting or Error. */
+export function statusLabel(s: PlayerState): string {
+  switch (s.status.kind) {
+    case "connecting": return s.status.reconnecting ? "Reconnecting" : "Connecting";
+    case "error": return "Error";
+    case "stopped": return "Paused";
+    case "playing": return "Playing";
+  }
+}
+
 export function nowPlayingText(s: PlayerState, stationTitle: string): string {
   const np = s.nowPlaying;
   return np ? `${np.artist ?? stationTitle} - ${np.title}` : "";
-}
-
-/** Bottom-bar second line: connecting and error status win over a kept-across-reconnect track. */
-export function barLineText(s: PlayerState, stationTitle: string): string {
-  const k = s.status.kind;
-  return k === "connecting" || k === "error"
-    ? statusText(s)
-    : nowPlayingText(s, stationTitle) || statusText(s);
 }
 
 export interface PrimaryAction { label: "Stop" | "Play" | "Retry"; busy: boolean }
