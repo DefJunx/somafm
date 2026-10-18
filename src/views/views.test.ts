@@ -51,7 +51,66 @@ it("falls back to the station name when an image fails", async () => {
   const imgs = await waitFor(() => screen.getAllByRole("img"));
   await fireEvent.error(imgs[0]);
   expect(screen.getAllByRole("img")).toHaveLength(2);
-  expect(screen.getByText("Station a")).toBeTruthy();
+  expect(document.querySelector(".fallback")?.textContent).toBe("Station a");
+});
+
+it("Tiles show the name and genre below the artwork, no live data", async () => {
+  ipc({ snap: { loaded: true, stations: [station("a", ["Ambient", "Chill"], { listeners: 99, lastPlaying: "X - Y" })] } });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  await screen.findByRole("img", { name: "Station a" });
+  const meta = document.querySelector(".meta")!;
+  expect(meta.querySelector(".name")?.textContent).toBe("Station a");
+  expect(meta.querySelector(".genre")?.textContent).toBe("Ambient, Chill");
+  expect(document.querySelector(".tile")?.contains(meta)).toBe(false);
+  expect(document.body.textContent).not.toContain("99");
+  expect(document.body.textContent).not.toContain("X - Y");
+});
+
+it("renders Skeleton tiles with aria-busy while not ready, then real Tiles", async () => {
+  let release: ((s: StationsSnapshot) => void) | undefined;
+  mockIPC((cmd) => (cmd === "get_player_state" ? ps() : cmd === "get_settings" ? { favourites: [], favouritesOnly: false } : new Promise((r) => (release = r))), { shouldMockEvents: true });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  await waitFor(() => expect(document.querySelectorAll(".skeleton").length).toBeGreaterThan(0));
+  expect(document.querySelector("main")?.getAttribute("aria-busy")).toBe("true");
+  expect(document.querySelector(".skeleton")?.closest("[aria-hidden='true']")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /^Play / })).toBeNull();
+  expect(screen.queryByText("Can't reach SomaFM")).toBeNull();
+  await waitFor(() => expect(release).toBeTypeOf("function"));
+  release!(feed);
+  await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(3));
+  expect(document.querySelectorAll(".skeleton")).toHaveLength(0);
+  expect(document.querySelector("main")?.getAttribute("aria-busy")).not.toBe("true");
+});
+
+it("shows the empty state, not Skeleton tiles, after a failed load", async () => {
+  mockIPC((cmd) => (cmd === "get_player_state" ? ps() : { stations: [], loaded: false }), { shouldMockEvents: true });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  await screen.findByText("Can't reach SomaFM");
+  expect(document.querySelectorAll(".skeleton")).toHaveLength(0);
+});
+
+it("Status badge sits in the meta row below the art with a name per status", async () => {
+  ipc({ player: ps({ stationId: "b", status: { kind: "playing" } }) });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore() });
+  const tile = await screen.findByRole("button", { name: "Play Station b" });
+  const badge = await screen.findByTestId("badge");
+  expect(tile.contains(badge)).toBe(false);
+  expect(badge.closest("li")?.querySelector(".meta")?.contains(badge)).toBe(true);
+  const cases: [PlayerState["status"], string, boolean][] = [
+    [{ kind: "playing" }, "Playing", true],
+    [{ kind: "stopped" }, "Paused", false],
+    [{ kind: "connecting", reconnecting: false }, "Connecting", true],
+    [{ kind: "error", errorKind: "offline", message: "You're offline" }, "Error", false],
+  ];
+  for (const [status, label, animated] of cases) {
+    await emit("player-state", ps({ stationId: "b", status }));
+    await waitFor(() => expect(screen.getByTestId("badge").getAttribute("data-status")).toBe(status.kind));
+    const b = screen.getByTestId("badge");
+    expect(b.getAttribute("aria-label")).toBe(`Status: ${label}`);
+    expect(b.textContent).toContain(label);
+    expect(!!b.querySelector(".dot:not(.still)")).toBe(animated);
+    expect(!!b.querySelector("svg")).toBe(status.kind === "error");
+  }
 });
 
 it("shows the empty state and Retry refreshes", async () => {
@@ -102,14 +161,14 @@ it("marks only the active Tile and the badge follows the status", async () => {
   expect(screen.getAllByTestId("badge")).toHaveLength(1);
   expect(screen.getByTestId("badge").getAttribute("data-status")).toBe("playing");
 
-  expect(document.querySelector(".eq")).toBeTruthy();
+  expect(document.querySelector(".badge .dot:not(.still)")).toBeTruthy();
   await emit("player-state", ps({ stationId: "b", status: { kind: "stopped" } }));
   await waitFor(() => expect(screen.getByTestId("badge").getAttribute("data-status")).toBe("stopped"));
-  expect(document.querySelector(".eq")).toBeNull(); // Paused: ring + static badge, no equaliser
+  expect(document.querySelector(".badge .dot:not(.still)")).toBeNull(); // Paused: ring + static badge, no animation
   expect(tile.getAttribute("aria-current")).toBe("true");
   await emit("player-state", ps({ stationId: "b", status: { kind: "connecting", reconnecting: false } }));
   await waitFor(() => expect(screen.getByTestId("badge").getAttribute("data-status")).toBe("connecting"));
-  expect(document.querySelector(".eq")).toBeNull();
+  expect(document.querySelector(".badge .dot:not(.still)")).toBeTruthy(); // connecting animates
   await emit("player-state", ps({ stationId: "b", status: { kind: "error", errorKind: "offline", message: "You're offline" } }));
   await waitFor(() => expect(screen.getByTestId("badge").getAttribute("data-status")).toBe("error"));
   expect(tile.getAttribute("aria-current")).toBe("true"); // ring stays in error
