@@ -11,3 +11,9 @@ export function genresOf(stations: Station[]): string[] {
 export function filterByGenre(stations: Station[], genre: string | null): Station[] {
   return genre === null ? stations : stations.filter((s) => s.genres.includes(genre));
 }
+
+/** Favourites present in the feed, in feed order. Ids missing from the feed are hidden (never pruned). */
+export function favouritesIn(stations: Station[], favourites: string[]): Station[] {
+  const set = new Set(favourites);
+  return stations.filter((s) => set.has(s.id));
+}

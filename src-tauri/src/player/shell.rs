@@ -123,6 +123,18 @@ impl Player {
         self.inner.core.lock().unwrap().state.clone()
     }
 
+    /// Launch restore: loads `station_id` as `stopped` (Paused) and applies `volume`.
+    /// Nothing connects and nothing is emitted; call before the webview asks for state.
+    pub fn restore(&self, station_id: Option<String>, volume: f32) {
+        let volume = volume.clamp(0.0, 1.0);
+        let mut core = self.inner.core.lock().unwrap();
+        core.state.station_id = station_id;
+        core.state.volume = volume;
+        self.inner
+            .volume
+            .store(f32_to_bits(volume), Ordering::Relaxed);
+    }
+
     /// Err only for an unknown station id (a programmer error).
     pub fn play(&self, station_id: &str) -> Result<(), String> {
         if self.inner.feed.station(station_id).is_none() {
@@ -604,6 +616,19 @@ mod tests {
 
     fn is_playing(s: &PlayerState) -> bool {
         s.status == Status::Playing
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn restore_loads_station_stopped_without_connecting_or_emitting() {
+        let stub = Stub::start(|base| station_routes(base, &["/mp3"], &[("/mp3", 200, MP3)])).await;
+        let rig = rig(&stub).await;
+        rig.player.restore(Some("s1".into()), 0.3);
+        let st = rig.player.state();
+        assert_eq!(st.station_id.as_deref(), Some("s1"));
+        assert_eq!(st.status, Status::Stopped);
+        assert_eq!(st.volume, 0.3);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(rig.snaps.lock().unwrap().is_empty());
     }
 
     #[tokio::test(flavor = "multi_thread")]

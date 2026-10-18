@@ -1,15 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { Station } from "../lib/api";
-  import { filterByGenre, genresOf } from "../lib/genres";
+  import { favouritesIn, filterByGenre, genresOf } from "../lib/genres";
   import { playerStore } from "../lib/player.svelte";
+  import { settingsStore } from "../lib/settings.svelte";
   import { stationsStore } from "../lib/stations.svelte";
   import NowPlayingBar from "./NowPlayingBar.svelte";
 
-  let { onopenplayer, store = stationsStore, player = playerStore }: {
+  let { onopenplayer, store = stationsStore, player = playerStore, settings = settingsStore }: {
     onopenplayer?: () => void;
     store?: typeof stationsStore;
     player?: typeof playerStore;
+    settings?: typeof settingsStore;
   } = $props();
 
   let genre: string | null = $state(null);
@@ -22,6 +24,12 @@
   onMount(() => {
     store.init().catch(() => {}); // a later mount retries
     player.init().catch(() => {});
+    settings.init().catch(() => {});
+  });
+
+  const visible = $derived.by(() => {
+    const byGenre = filterByGenre(store.stations, selected);
+    return settings.favouritesOnly ? favouritesIn(byGenre, settings.favourites) : byGenre;
   });
 
   function onPlay(station: Station) {
@@ -42,14 +50,15 @@
       <button onclick={() => store.retry()} disabled={store.retrying}>Retry</button>
     </section>
   {:else}
-    <div class="chips" role="group" aria-label="Filter by genre">
-      <button class="chip" aria-pressed={selected === null} onclick={() => (genre = null)}>All</button>
+    <div class="chips" role="group" aria-label="Filter stations">
+      <button class="chip" aria-pressed={selected === null && !settings.favouritesOnly} onclick={() => { genre = null; settings.setFavouritesOnly(false).catch(() => {}); }}>All</button>
+      <button class="chip" aria-pressed={settings.favouritesOnly} onclick={() => settings.setFavouritesOnly(!settings.favouritesOnly).catch(() => {})}>Favourites</button>
       {#each genres as g (g)}
         <button class="chip" aria-pressed={selected === g} onclick={() => (genre = g)}>{g}</button>
       {/each}
     </div>
     <ul class="grid">
-      {#each filterByGenre(store.stations, selected) as s (s.id)}
+      {#each visible as s (s.id)}
         <li>
           <button class="tile" class:active={s.id === activeId} aria-current={s.id === activeId ? "true" : undefined} onclick={() => onPlay(s)} aria-label={`Play ${s.title}`}>
             {#if failed.has(s.largeImage)}

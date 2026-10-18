@@ -6,6 +6,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::feed::{Feed, StationsSnapshot};
 use crate::player::{Player, PlayerState};
+use crate::settings::{SettingsService, SettingsView};
 
 pub const STATIONS_UPDATED: &str = "stations-updated";
 pub const PLAYER_STATE: &str = "player-state";
@@ -35,8 +36,14 @@ pub fn get_player_state(player: State<'_, Player>) -> PlayerState {
 
 /// Err only for an unknown station id; playback failures surface as `Status::Error`.
 #[tauri::command]
-pub fn play(player: State<'_, Player>, station_id: String) -> Result<(), String> {
-    player.play(&station_id)
+pub fn play(
+    player: State<'_, Player>,
+    settings: State<'_, SettingsService>,
+    station_id: String,
+) -> Result<(), String> {
+    player.play(&station_id)?;
+    settings.set_last_station(&station_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -45,6 +52,32 @@ pub fn stop(player: State<'_, Player>) {
 }
 
 #[tauri::command]
-pub fn set_volume(player: State<'_, Player>, volume: f32) {
+pub fn set_volume(player: State<'_, Player>, settings: State<'_, SettingsService>, volume: f32) {
     player.set_volume(volume);
+    settings.set_volume(volume); // debounced write
+}
+
+#[tauri::command]
+pub fn get_settings(settings: State<'_, SettingsService>) -> SettingsView {
+    settings.view()
+}
+
+/// Err only for an unknown station id; a Favourite that left the feed can still be removed.
+#[tauri::command]
+pub fn toggle_favourite(
+    settings: State<'_, SettingsService>,
+    feed: State<'_, Arc<Feed>>,
+    station_id: String,
+) -> Result<(), String> {
+    let is_favourite = settings.view().favourites.contains(&station_id);
+    if !is_favourite && feed.station(&station_id).is_none() {
+        return Err(format!("unknown station `{station_id}`"));
+    }
+    settings.toggle_favourite(&station_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_favourites_only(settings: State<'_, SettingsService>, value: bool) {
+    settings.set_favourites_only(value);
 }

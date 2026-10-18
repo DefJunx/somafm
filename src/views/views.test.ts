@@ -6,8 +6,9 @@ import Grid from "./Grid.svelte";
 import Player from "./Player.svelte";
 import { createStationsStore } from "../lib/stations.svelte";
 import { createPlayerStore, initialPlayerState } from "../lib/player.svelte";
+import { createSettingsStore } from "../lib/settings.svelte";
 import { station } from "../lib/fixtures";
-import type { PlayerState, StationsSnapshot } from "../lib/api";
+import type { PlayerState, SettingsView, StationsSnapshot } from "../lib/api";
 
 afterEach(() => { cleanup(); clearMocks(); });
 
@@ -20,9 +21,10 @@ const ps = (over: Partial<PlayerState> = {}): PlayerState => ({ ...initialPlayer
 type Call = [string, unknown];
 
 /** Routes IPC by command: player state / stations / records player commands. */
-function ipc(opts: { snap?: StationsSnapshot; player?: PlayerState; calls?: Call[] } = {}) {
+function ipc(opts: { snap?: StationsSnapshot; player?: PlayerState; settings?: SettingsView; calls?: Call[] } = {}) {
   mockIPC(
     (cmd, args) => {
+      if (cmd === "get_settings") return opts.settings ?? { favourites: [], favouritesOnly: false };
       if (cmd === "get_player_state") return opts.player ?? ps();
       if (cmd === "get_stations" || cmd === "refresh_stations") return opts.snap ?? feed;
       opts.calls?.push([cmd, args]);
@@ -299,4 +301,52 @@ it("Grid badge pulses while connecting or reconnecting, warns in error, ring sta
   await waitFor(() => expect(screen.getByTestId("badge").textContent).toContain("\u26A0"));
   expect(document.querySelector(".badge .dot")).toBeNull();
   expect(tile.getAttribute("aria-current")).toBe("true");
+});
+
+const names = () => screen.getAllByRole("img").map((i) => i.getAttribute("alt"));
+
+it("Favourites chip shows only Favourites present in the feed, in feed order", async () => {
+  const calls: Call[] = [];
+  ipc({ settings: { favourites: ["c", "gone", "a"], favouritesOnly: false }, calls });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore(), settings: createSettingsStore() });
+  await waitFor(() => expect(screen.getAllByRole("img")).toHaveLength(3));
+  const chip = screen.getByRole("button", { name: "Favourites" });
+  expect(chip.getAttribute("aria-pressed")).toBe("false");
+  await fireEvent.click(chip);
+  expect(calls).toContainEqual(["set_favourites_only", { value: true }]);
+  // Rust confirms with settings-changed; the view follows the event.
+  await emit("settings-changed", { favourites: ["c", "gone", "a"], favouritesOnly: true });
+  await waitFor(() => expect(names()).toEqual(["Station a", "Station c"]));
+  expect(chip.getAttribute("aria-pressed")).toBe("true");
+  await fireEvent.click(screen.getByRole("button", { name: "All" }));
+  expect(calls).toContainEqual(["set_favourites_only", { value: false }]);
+});
+
+it("restores the persisted Favourites chip state on launch", async () => {
+  ipc({ settings: { favourites: ["b"], favouritesOnly: true } });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore(), settings: createSettingsStore() });
+  await waitFor(() => expect(names()).toEqual(["Station b"]));
+  expect(screen.getByRole("button", { name: "Favourites" }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByRole("button", { name: "All" }).getAttribute("aria-pressed")).toBe("false");
+});
+
+it("Favourites chip combines with a genre chip", async () => {
+  ipc({ settings: { favourites: ["a", "b"], favouritesOnly: true } });
+  render(Grid, { store: createStationsStore(), player: createPlayerStore(), settings: createSettingsStore() });
+  await waitFor(() => expect(names()).toEqual(["Station a", "Station b"]));
+  await fireEvent.click(screen.getByRole("button", { name: "Rock" }));
+  expect(names()).toEqual(["Station b"]);
+});
+
+it("Player screen Favourite toggle reflects and toggles the loaded Station", async () => {
+  const calls: Call[] = [];
+  ipc({ player: ps({ stationId: "a" }), settings: { favourites: [], favouritesOnly: false }, calls });
+  render(Player, { player: createPlayerStore(), stations: createStationsStore(), settings: createSettingsStore() });
+  const btn = await screen.findByRole("button", { name: "Add to Favourites" });
+  expect(btn.getAttribute("aria-pressed")).toBe("false");
+  await fireEvent.click(btn);
+  expect(calls).toContainEqual(["toggle_favourite", { stationId: "a" }]);
+  await emit("settings-changed", { favourites: ["a"], favouritesOnly: false });
+  const on = await screen.findByRole("button", { name: "Remove from Favourites" });
+  expect(on.getAttribute("aria-pressed")).toBe("true");
 });

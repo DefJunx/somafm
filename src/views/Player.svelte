@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { nowPlayingText, playerStore, primaryAction, runPrimaryAction, statusText } from "../lib/player.svelte";
+  import { settingsStore } from "../lib/settings.svelte";
   import { stationsStore } from "../lib/stations.svelte";
 
-  let { onback, player = playerStore, stations = stationsStore }: {
+  let { onback, player = playerStore, stations = stationsStore, settings = settingsStore }: {
     onback?: () => void;
     player?: typeof playerStore;
     stations?: typeof stationsStore;
+    settings?: typeof settingsStore;
   } = $props();
 
   let lastVolume = 0.8;
@@ -21,7 +23,10 @@
   onMount(() => {
     player.init().catch(() => {});
     stations.init().catch(() => {});
+    settings.init().catch(() => {});
   });
+
+  const favourite = $derived(s.stationId !== null && settings.favourites.includes(s.stationId));
 
   function toggleMute() {
     if (muted) {
@@ -54,6 +59,11 @@
       <button class="main" onclick={() => runPrimaryAction(player)} disabled={action.busy} aria-busy={action.busy}>
         {#if action.busy}<span class="spinner" aria-hidden="true"></span>{/if}{action.busy ? "Connecting" : action.label}
       </button>
+      {#if s.stationId}
+        <button class="fav" aria-pressed={favourite} aria-label={favourite ? "Remove from Favourites" : "Add to Favourites"} onclick={() => s.stationId && settings.toggleFavourite(s.stationId).catch(() => {})}>
+          {favourite ? "\u2605" : "\u2606"} Favourite
+        </button>
+      {/if}
       <div class="volume">
         <button onclick={toggleMute} aria-pressed={muted}>{muted ? "Unmute" : "Mute"}</button>
         <input

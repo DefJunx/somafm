@@ -15,6 +15,8 @@ use player::{
     Player, SinkFactory,
     decode::{PcmSink, RodioSink},
 };
+use settings::{SettingsService, StorePersist};
+use tauri_plugin_store::StoreBuilder;
 
 fn window_visible(w: &tauri::Window) -> bool {
     w.is_visible().unwrap_or(true) && !w.is_minimized().unwrap_or(false)
@@ -23,13 +25,18 @@ fn window_visible(w: &tauri::Window) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             commands::get_stations,
             commands::refresh_stations,
             commands::get_player_state,
             commands::play,
             commands::stop,
-            commands::set_volume
+            commands::set_volume,
+            commands::get_settings,
+            commands::toggle_favourite,
+            commands::set_favourites_only
         ])
         .setup(|app| {
             let cache_dir = app.path().app_cache_dir()?;
@@ -48,7 +55,35 @@ pub fn run() {
                     let _ = emitter.emit(commands::PLAYER_STATE, state);
                 },
             );
-            app.manage(player);
+            app.manage(player.clone());
+
+            // Settings: absolute path in the app-config dir (the store plugin would
+            // otherwise resolve relative paths against the app-data dir).
+            let path = app.path().app_config_dir()?.join(settings::FILE);
+            let loaded = settings::load_file(&path, settings::MIGRATIONS);
+            let store = StoreBuilder::new(app.handle(), path).build()?;
+            let persist = StorePersist(store);
+            if loaded.needs_save {
+                settings::Persist::save(&persist, &loaded.settings);
+            }
+            let s = loaded.settings;
+            // A last Station that left the feed is treated as null (not rewritten).
+            // Without a feed yet (fresh install) the id cannot be checked, so keep it.
+            let last = s
+                .last_station_id
+                .clone()
+                .filter(|id| !feed.snapshot().loaded || feed.station(id).is_some());
+            player.restore(last, s.volume);
+            let emitter = app.handle().clone();
+            app.manage(SettingsService::new(
+                s,
+                persist,
+                tauri::async_runtime::handle().inner().clone(),
+                settings::VOLUME_DEBOUNCE,
+                move |view| {
+                    let _ = emitter.emit(settings::SETTINGS_CHANGED, view);
+                },
+            ));
 
             // Refresh loop runs only while the main window is visible and not minimised.
             // The tray slice (issue 07) must send false/true on the managed
@@ -80,8 +115,16 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Don't lose a volume change still inside its debounce window.
+                if let Some(s) = app.try_state::<SettingsService>() {
+                    s.flush();
+                }
+            }
+        });
 }
 
 #[cfg(test)]
