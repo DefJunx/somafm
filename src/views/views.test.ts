@@ -298,7 +298,7 @@ it("Grid badge pulses while connecting or reconnecting, warns in error, ring sta
   expect(document.querySelector(".badge .dot:not(.still)")).toBeTruthy();
   await emit("player-state", errState("unavailable", "Station unavailable"));
   await emit("player-state", ps({ stationId: "b", status: { kind: "error", errorKind: "unsupported", message: "Can't play this stream" } }));
-  await waitFor(() => expect(screen.getByTestId("badge").textContent).toContain("\u26A0"));
+  await waitFor(() => expect(screen.getByTestId("badge").querySelector("svg")).toBeTruthy());
   expect(document.querySelector(".badge .dot")).toBeNull();
   expect(tile.getAttribute("aria-current")).toBe("true");
 });

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { barLineText, playerStore, primaryAction, runPrimaryAction } from "../lib/player.svelte";
   import { stationsStore } from "../lib/stations.svelte";
+  import Icon from "../lib/Icon.svelte";
 
   let { onopenplayer, player = playerStore, stations = stationsStore }: {
     onopenplayer?: () => void;
@@ -21,7 +22,10 @@
       <strong>{title}</strong>
       <span class="line">{line}</span>
     </button>
-    <button onclick={() => runPrimaryAction(player)}>{action.label}</button>
+    <button onclick={() => runPrimaryAction(player)} aria-label={action.label}>
+      <Icon name={action.label === "Stop" ? "stop" : action.label === "Play" ? "play" : "warning"} />
+      <span>{action.label}</span>
+    </button>
   </aside>
 {/if}
 
@@ -32,15 +36,24 @@
     padding: var(--size-2) var(--size-4);
     background: var(--surface-raised); border-block-start: 1px solid var(--surface-control);
   }
-  .info { flex: 1; display: grid; text-align: start; background: none; border: none; cursor: pointer; padding: 0; color: inherit; }
+  .info { flex: 1; display: grid; text-align: start; background: none; border: none; cursor: pointer; padding: 0; color: inherit; transition: color var(--motion-duration-fast) var(--motion-easing); }
+  .info:hover { color: var(--color-accent); }
+  .info:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
   .info strong { font-family: var(--font-heading); color: var(--color-heading); }
   .line { font-family: var(--font-data); color: var(--text-muted); font-size: var(--font-size-1); }
   .bar button:last-child {
     background: var(--surface-control-strong);
     color: var(--text-primary);
-    border: none;
-    border-radius: var(--radius-control);
+    display: flex;
+    align-items: center;
+    gap: var(--size-2);
     padding: var(--size-2) var(--size-3);
-    cursor: pointer;
+  }
+  .bar button:last-child:not(:disabled):hover {
+    background-color: var(--color-accent);
+  }
+  .bar button:last-child:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: 2px;
   }
 </style>

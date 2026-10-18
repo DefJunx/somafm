@@ -19,6 +19,9 @@
   /* Radius tokens */
   --radius-control: 8px;
 
+  /* Focus ring token */
+  --focus-ring: 2px solid var(--color-accent);
+
   /* Motion tokens */
   --motion-duration-fast: 0.15s;
   --motion-duration-base: 0.3s;
@@ -45,4 +48,98 @@ body {
 h1, h2, h3, a {
   font-family: var(--font-heading);
   color: var(--color-heading);
+}
+
+/* Global button and chip styles */
+button, input[type="button"], input[type="reset"], input[type="submit"] {
+  border: none;
+  border-radius: var(--radius-control);
+  padding: var(--size-2) var(--size-3);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--surface-control);
+  color: var(--text-primary);
+  transition: background-color var(--motion-duration-fast) var(--motion-easing);
+}
+
+button:not(:disabled):hover,
+input[type="button"]:not(:disabled):hover,
+input[type="reset"]:not(:disabled):hover,
+input[type="submit"]:not(:disabled):hover {
+  background-color: var(--color-accent);
+}
+
+button:focus-visible,
+input[type="button"]:focus-visible,
+input[type="reset"]:focus-visible,
+input[type="submit"]:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+button:disabled,
+input[type="button"]:disabled,
+input[type="reset"]:disabled,
+input[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Input range styling */
+input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--color-accent) 0%, var(--color-accent) var(--fill, 50%), var(--surface-control) var(--fill, 50%), var(--surface-control) 100%);
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: var(--color-heading);
+}
+
+input[type="range"]:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing);
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+  background: var(--color-heading);
+}
+
+input[type="range"]::-moz-range-track {
+  background: none;
+  border: none;
+}
+
+input[type="range"]::-moz-range-progress {
+  background: var(--color-accent);
+  height: 4px;
+  border-radius: 2px;
 }

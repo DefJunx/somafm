@@ -6,6 +6,7 @@
   import { settingsStore } from "../lib/settings.svelte";
   import { stationsStore } from "../lib/stations.svelte";
   import NowPlayingBar from "./NowPlayingBar.svelte";
+  import Icon from "../lib/Icon.svelte";
 
   let { onopenplayer, store = stationsStore, player = playerStore, settings = settingsStore }: {
     onopenplayer?: () => void;
@@ -66,10 +67,10 @@
             {:else}
               <img src={s.largeImage} alt={s.title} loading="lazy" onerror={() => (failed = new Set(failed).add(s.largeImage))} />
             {/if}
-            <span class="play" aria-hidden="true">&#9654;</span>
+            <span class="play"><Icon name="play" /></span>
             {#if s.id === activeId}
               <span class="badge" data-testid="badge" data-status={activeKind} title={activeKind}>
-                {#if activeKind === "error"}&#9888;{:else if activeKind === "connecting"}<i class="dot"></i>{:else if activeKind === "playing"}<i class="eq"><b></b><b></b><b></b></i>{:else}<i class="dot still"></i>{/if}
+                {#if activeKind === "error"}<Icon name="warning" />{:else if activeKind === "connecting"}<i class="dot"></i>{:else if activeKind === "playing"}<i class="eq"><b></b><b></b><b></b></i>{:else}<i class="dot still"></i>{/if}
               </span>
             {/if}
           </button>
@@ -83,12 +84,30 @@
 <style>
   main { padding: var(--size-4); padding-block-end: var(--size-10); }
   .empty { display: grid; justify-items: center; gap: var(--size-3); margin-block: var(--size-10); }
+  .empty button {
+    padding: var(--size-2) var(--size-4);
+  }
   .chips { display: flex; flex-wrap: wrap; gap: var(--size-2); margin-block-end: var(--size-4); }
   .chip {
     border-radius: var(--radius-round);
     background: var(--surface-control);
     padding-inline: var(--size-3);
     color: var(--text-primary);
+    padding-block: var(--size-2);
+    border: none;
+    cursor: pointer;
+    transition: background-color var(--motion-duration-fast) var(--motion-easing);
+  }
+  .chip:not(:disabled):hover {
+    background-color: var(--color-accent);
+  }
+  .chip:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .chip:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
   .chip[aria-pressed="true"] { background: var(--surface-control-strong); color: var(--text-primary); }
   .grid {
@@ -110,6 +129,10 @@
     background: var(--surface-raised);
     cursor: pointer;
   }
+  .tile:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: 2px;
+  }
   .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .fallback { display: grid; place-items: center; height: 100%; padding: var(--size-2); text-align: center; font-weight: var(--font-weight-6); font-family: var(--font-heading); }
   .play {
@@ -117,6 +140,7 @@
     font-size: var(--font-size-6); color: white;
     background: rgb(0 0 0 / 0.45); opacity: 0; transition: opacity var(--motion-duration-fast) var(--motion-easing);
   }
+  :global(.play > svg) { font-size: 2em; }
   .tile.active { outline: 3px solid var(--color-accent); outline-offset: -3px; }
   .badge {
     position: absolute; inset-block-end: var(--size-2); inset-inline-end: var(--size-2);
