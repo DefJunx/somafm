@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=somafm
+Comment=Desktop SomaFM player
+Exec=@BIN@ %U
+Icon=somafm
+Categories=Audio;Music;AudioVideo;
+Terminal=false
+StartupNotify=true
