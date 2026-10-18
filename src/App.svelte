@@ -35,7 +35,7 @@
 {/if}
 
 <style>
-  .view { animation: view-in var(--motion-duration-base) var(--motion-easing) both; }
+  .view { animation: view-in var(--motion-duration-base) var(--motion-easing) backwards; } /* not `both`: a retained transform would trap the fixed NowPlayingBar */
   .view[hidden] { display: none; }
   @keyframes view-in { from { opacity: 0; transform: translateY(8px); } }
   @media (prefers-reduced-motion: reduce) {
