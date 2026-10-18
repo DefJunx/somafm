@@ -78,12 +78,54 @@
 
 <style>
   main { padding: var(--size-4); }
+  .back {
+    background: var(--surface-control);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--radius-control);
+    padding: var(--size-2) var(--size-3);
+    cursor: pointer;
+  }
   .layout { display: grid; grid-template-columns: minmax(200px, 1fr) 1.5fr; gap: var(--size-6); margin-block-start: var(--size-4); }
-  .art { aspect-ratio: 1; background: var(--surface-2); border-radius: var(--radius-2); overflow: hidden; display: grid; place-items: center; }
+  .art { aspect-ratio: 1; background: var(--surface-raised); border-radius: var(--radius-2); overflow: hidden; display: grid; place-items: center; }
   .art img { width: 100%; height: 100%; object-fit: cover; }
-  .fallback { font-weight: var(--font-weight-6); padding: var(--size-3); text-align: center; }
+  .fallback { font-weight: var(--font-weight-6); padding: var(--size-3); text-align: center; font-family: var(--font-heading); }
   .info { display: grid; gap: var(--size-3); align-content: start; }
+  .info h1 { font-family: var(--font-heading); color: var(--color-heading); margin: 0; }
+  .desc { color: var(--text-primary); }
+  .now { font-family: var(--font-data); color: var(--text-primary); }
+  .listeners { font-family: var(--font-data); color: var(--text-muted); }
+  .status { font-family: var(--font-data); color: var(--text-muted); }
+  .main {
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-control);
+    padding: var(--size-3) var(--size-4);
+    cursor: pointer;
+    font-weight: var(--font-weight-6);
+  }
+  .main:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+  .fav {
+    background: var(--surface-control);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--radius-control);
+    padding: var(--size-2) var(--size-3);
+    cursor: pointer;
+  }
   .volume { display: flex; gap: var(--size-3); align-items: center; }
+  .volume button {
+    background: var(--surface-control);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--radius-control);
+    padding: var(--size-2) var(--size-3);
+    cursor: pointer;
+  }
   .spinner {
     display: inline-block; width: 1em; height: 1em; margin-inline-end: var(--size-2);
     border: 2px solid currentColor; border-inline-end-color: transparent; border-radius: 50%;

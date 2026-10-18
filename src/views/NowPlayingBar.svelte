@@ -30,8 +30,17 @@
     position: fixed; inset-inline: 0; inset-block-end: 0;
     display: flex; align-items: center; gap: var(--size-3);
     padding: var(--size-2) var(--size-4);
-    background: var(--surface-3); border-block-start: 1px solid var(--surface-4);
+    background: var(--surface-raised); border-block-start: 1px solid var(--surface-control);
   }
   .info { flex: 1; display: grid; text-align: start; background: none; border: none; cursor: pointer; padding: 0; color: inherit; }
-  .line { color: var(--text-2); font-size: var(--font-size-1); }
+  .info strong { font-family: var(--font-heading); color: var(--color-heading); }
+  .line { font-family: var(--font-data); color: var(--text-muted); font-size: var(--font-size-1); }
+  .bar button:last-child {
+    background: var(--surface-control-strong);
+    color: var(--text-primary);
+    border: none;
+    border-radius: var(--radius-control);
+    padding: var(--size-2) var(--size-3);
+    cursor: pointer;
+  }
 </style>

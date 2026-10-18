@@ -1,8 +1,48 @@
 :root {
   color-scheme: dark;
+
+  /* Surface tokens */
+  --surface-base: #000;
+  --surface-raised: #272727;
+  --surface-control: #222;
+  --surface-control-strong: #444;
+
+  /* Text tokens */
+  --text-primary: #eee;
+  --text-muted: #aaa;
+
+  /* Semantic color tokens */
+  --color-heading: #D8A24D;
+  --color-accent: #1a9096;
+  --color-primary: #4CAF50;
+
+  /* Radius tokens */
+  --radius-control: 8px;
+
+  /* Motion tokens */
+  --motion-duration-fast: 0.15s;
+  --motion-duration-base: 0.3s;
+  --motion-easing: ease-in-out;
+
+  /* Font stacks */
+  --font-heading: "Trebuchet MS", Verdana, ui-sans-serif, sans-serif;
+  --font-data: Monaco, "Lucida Console", Courier, ui-monospace, monospace;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast: 0s;
+    --motion-duration-base: 0s;
+  }
+}
+
 body {
-  background: var(--surface-1);
-  color: var(--text-1);
+  background: var(--surface-base);
+  color: var(--text-primary);
   font-family: var(--font-sans);
+}
+
+h1, h2, h3, a {
+  font-family: var(--font-heading);
+  color: var(--color-heading);
 }

@@ -86,10 +86,11 @@
   .chips { display: flex; flex-wrap: wrap; gap: var(--size-2); margin-block-end: var(--size-4); }
   .chip {
     border-radius: var(--radius-round);
-    background: var(--surface-3);
+    background: var(--surface-control);
     padding-inline: var(--size-3);
+    color: var(--text-primary);
   }
-  .chip[aria-pressed="true"] { background: var(--indigo-7); color: white; }
+  .chip[aria-pressed="true"] { background: var(--surface-control-strong); color: var(--text-primary); }
   .grid {
     list-style: none;
     padding: 0;
@@ -106,17 +107,17 @@
     overflow: hidden;
     border: none;
     border-radius: var(--radius-2);
-    background: var(--surface-2);
+    background: var(--surface-raised);
     cursor: pointer;
   }
   .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .fallback { display: grid; place-items: center; height: 100%; padding: var(--size-2); text-align: center; font-weight: var(--font-weight-6); }
+  .fallback { display: grid; place-items: center; height: 100%; padding: var(--size-2); text-align: center; font-weight: var(--font-weight-6); font-family: var(--font-heading); }
   .play {
     position: absolute; inset: 0; display: grid; place-items: center;
     font-size: var(--font-size-6); color: white;
-    background: rgb(0 0 0 / 0.45); opacity: 0; transition: opacity 0.15s;
+    background: rgb(0 0 0 / 0.45); opacity: 0; transition: opacity var(--motion-duration-fast) var(--motion-easing);
   }
-  .tile.active { outline: 3px solid var(--indigo-5); outline-offset: -3px; }
+  .tile.active { outline: 3px solid var(--color-accent); outline-offset: -3px; }
   .badge {
     position: absolute; inset-block-end: var(--size-2); inset-inline-end: var(--size-2);
     padding: var(--size-1) var(--size-2); border-radius: var(--radius-round);
