@@ -1,6 +1,6 @@
 # Build & Install Guide
 
-This guide covers building and installing somafm on Linux, macOS (unverified), and Windows (unverified).
+This guide covers building and installing somafm on Linux (verified), macOS (unverified), and Windows (unverified).
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ This guide covers building and installing somafm on Linux, macOS (unverified), a
 
 ## Linux
 
-**Targeted at:** (build not yet run by the agent) Bazzite 44 KDE (immutable Fedora)
+**Verified on:** Bazzite 44 KDE (immutable Fedora)
 
 ### 1. Set up build environment
 
