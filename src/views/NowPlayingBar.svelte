@@ -38,6 +38,7 @@
     position: fixed; inset-inline: 0; inset-block-end: 0;
     display: flex; align-items: center; gap: var(--size-3);
     padding: var(--size-2) var(--size-4);
+    box-sizing: border-box; max-width: 100%;
     background: var(--surface-raised); border-block-start: 1px solid var(--surface-control);
   }
   .info { flex: 1; min-width: 0; display: grid; text-align: start; background: none; border: none; cursor: pointer; padding: 0; color: inherit; transition: color var(--motion-duration-fast) var(--motion-easing); }
@@ -46,7 +47,9 @@
   .info strong, .line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .info strong { font-family: var(--font-heading); color: var(--color-heading); }
   .line { font-family: var(--font-data); color: var(--text-muted); font-size: var(--font-size-1); min-height: 1lh; }
-  .bar button:last-child {
+  .bar > :global(*) { min-width: 0; }
+  .bar > :global(.badge) { flex: 0 1 auto; }
+  .bar button:last-child { flex-shrink: 0;
     background: var(--surface-control-strong);
     color: var(--text-primary);
     display: flex;

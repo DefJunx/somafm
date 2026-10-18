@@ -54,7 +54,7 @@
       {/if}
     </div>
     <section class="info">
-      <h1 {title}>{title}</h1>
+      <h1 {title} tabindex="-1">{title}</h1>
       {#if station}
         <p class="desc">{station.description}</p>
         <p class="listeners">{station.listeners} listeners</p>
@@ -97,7 +97,11 @@
     align-items: center;
     gap: var(--size-2);
   }
-  .layout { display: grid; grid-template-columns: minmax(200px, 1fr) 1.5fr; gap: var(--size-6); margin-block-start: var(--size-4); }
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 1.5fr; gap: var(--size-6); margin-block-start: var(--size-4); }
+  @media (max-width: 640px) { .layout { grid-template-columns: minmax(0, 1fr); gap: var(--size-4); } .art { max-width: 24rem; width: 100%; justify-self: center; } }
+  main { min-width: 0; }
+  .info > * { min-width: 0; }
+  .info h1:focus { outline: none; }
   .art { aspect-ratio: 1; background: var(--surface-raised); border-radius: var(--radius-2); overflow: hidden; display: grid; place-items: center; }
   .art img { width: 100%; height: 100%; object-fit: cover; }
   .fallback { font-weight: var(--font-weight-6); padding: var(--size-3); text-align: center; font-family: var(--font-heading); }

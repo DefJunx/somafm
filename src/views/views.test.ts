@@ -1,9 +1,10 @@
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/svelte";
 import { emit } from "@tauri-apps/api/event";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import Grid from "./Grid.svelte";
 import Player from "./Player.svelte";
+import App from "../App.svelte";
 import { createStationsStore } from "../lib/stations.svelte";
 import { createPlayerStore, initialPlayerState } from "../lib/player.svelte";
 import { createSettingsStore } from "../lib/settings.svelte";
@@ -471,4 +472,34 @@ it("bottom bar Play button is the green primary; Stop and Retry are not", async 
   await waitFor(() => expect(screen.getByRole("button", { name: "Stop" }).classList.contains("primary")).toBe(false));
   await emit("player-state", errState("offline", "You're offline"));
   await waitFor(() => expect(screen.getByRole("button", { name: "Retry" }).classList.contains("primary")).toBe(false));
+});
+
+it("App keeps Grid mounted and filters on return, moves focus to the Player heading and back to the Tile", async () => {
+  ipc();
+  render(App);
+  await fireEvent.click(await screen.findByRole("button", { name: "Ambient" }));
+  const tile = await screen.findByRole("button", { name: "Play Station a" });
+  tile.focus();
+  await fireEvent.click(tile);
+  const heading = await screen.findByRole("heading", { level: 1 });
+  await waitFor(() => expect(document.activeElement).toBe(heading));
+  expect(document.getElementById("grid-view")?.hidden).toBe(true);
+  await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  await waitFor(() => expect(document.getElementById("grid-view")?.hidden).toBe(false));
+  expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+  expect(screen.getByRole("button", { name: "Ambient" }).getAttribute("aria-pressed")).toBe("true");
+  expect(document.activeElement).toBe(tile);
+});
+
+it("App restores the Grid scroll position when returning from the Player", async () => {
+  ipc();
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  Object.defineProperty(window, "scrollY", { value: 321, configurable: true });
+  render(App);
+  await fireEvent.click(await screen.findByRole("button", { name: "Play Station a" }));
+  await screen.findByRole("button", { name: "Back" });
+  await fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(0, 321));
+  scrollTo.mockRestore();
+  Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
 });
