@@ -37,8 +37,8 @@ Ensure `curl`, `wget`, and `file` are also available (usually pre-installed).
 ### 2. Build the application
 
 ```bash
-# Inside the toolbox:
-toolbox run -c fedora-toolbox-44 bash -lc 'cd /path/to/somafm && pnpm install && pnpm tauri build --no-bundle'
+pnpm install
+pnpm build:linux   # runs `pnpm tauri build --no-bundle` inside fedora-toolbox-44
 ```
 
 The binary will be at `src-tauri/target/release/somafm`.
@@ -77,7 +77,7 @@ sudo dnf install webkit2gtk4.1 libappindicator-gtk3 alsa-lib
 ### Build
 
 ```bash
-pnpm tauri build --bundles app
+pnpm build:macos   # runs `tauri build --bundles app`
 ```
 
 The bundle will be at `src-tauri/target/release/bundle/macos/somafm.app`.
@@ -106,7 +106,7 @@ xattr -dr com.apple.quarantine /Applications/somafm.app
 ### Build
 
 ```bash
-pnpm tauri build --bundles nsis
+pnpm build:windows   # runs `tauri build --bundles nsis`
 ```
 
 The installer will be at `src-tauri/target/release/bundle/nsis/somafm_0.1.0_x64-setup.exe`.
