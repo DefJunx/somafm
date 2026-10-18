@@ -27,6 +27,9 @@ symphonia = { version = "0.5", default-features = false, features = ["mp3"] }
 rodio = { version = "0.23", default-features = false, features = ["playback"] }
 tauri-plugin-store = "2"
 tauri-plugin-window-state = "2"
+# Default `use_dbus` feature: needs libdbus-1 (dev headers) on Linux, but reports a
+# missing session bus as an Error; `use_zbus` would panic its service thread instead.
+souvlaki = "0.8"
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,6 +1,6 @@
 # 08 Media keys & OS overlay
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 04
 
 ## Goal
@@ -22,3 +22,4 @@ S14, S15. Shared Definition of Done in [§9 Testing & DoD](../spec.md#9-testing-
 ## Notes
 - Slice 06 may not be merged yet: read `lastStationId` through the `settings` interface if present, otherwise from `PlayerState.stationId`.
 - Verify on Linux via the KDE media widget / `playerctl`.
+- User verified S14-S15 manually on 2026-10-18 (media keys and KDE media widget). Resolved.

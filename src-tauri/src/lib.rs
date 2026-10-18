@@ -120,6 +120,7 @@ pub fn run() {
                 });
             }
             tray::init(app.handle())?;
+            media_controls::init(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())

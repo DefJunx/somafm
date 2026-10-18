@@ -161,7 +161,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
 /// sync Tauri commands run there while `Player` holds its core lock around
 /// `emit`. A listener that rebuilt the menu inline would re-lock the core and
 /// deadlock the app, so every refresh hops through here first.
-fn run_deferred(f: impl FnOnce() + Send + 'static) {
+pub(crate) fn run_deferred(f: impl FnOnce() + Send + 'static) {
     tauri::async_runtime::spawn_blocking(f);
 }
 
@@ -199,7 +199,7 @@ fn on_menu_event(app: &AppHandle, id: &str) {
 }
 
 /// Same path as the `play` command (persists `lastStationId`).
-fn play(app: &AppHandle, station_id: &str) {
+pub(crate) fn play(app: &AppHandle, station_id: &str) {
     let _ = commands::play_station(
         &app.state::<Player>(),
         &app.state::<SettingsService>(),
