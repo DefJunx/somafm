@@ -5,5 +5,4 @@ src-tauri/target
 src-tauri/gen/schemas
 .DS_Store
 
-.scratch/
 research/
