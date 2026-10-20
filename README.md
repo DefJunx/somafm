@@ -32,13 +32,35 @@ Platform notes:
 
 ## Install
 
-There are no prebuilt releases; build from source. Full, platform-specific instructions (including the Linux toolbox build environment, runtime libraries and troubleshooting) are in [BUILD.md](BUILD.md).
+Prebuilt binaries for Linux, macOS and Windows are on the [releases page](https://github.com/DefJunx/somafm/releases); see [Verifying downloads](#verifying-downloads) to check them. Or build from source: full, platform-specific instructions (including the Linux toolbox build environment, runtime libraries and troubleshooting) are in [BUILD.md](BUILD.md).
 
 | Platform | Build | Install |
 | --- | --- | --- |
 | Linux | `pnpm build:linux` | `./scripts/install-linux.sh` (installs to `~/.local`) |
 | macOS | `pnpm build:macos` | Copy `somafm.app` to `/Applications` |
 | Windows | `pnpm build:windows` | Run the generated NSIS installer |
+
+## Verifying downloads
+
+Each [release](https://github.com/DefJunx/somafm/releases) includes a `SHA256SUMS` file and a build provenance attestation for every artifact. To check a download:
+
+1. Download the artifact and `SHA256SUMS` from the same release into one folder.
+2. Check the checksum:
+
+   ```bash
+   sha256sum -c SHA256SUMS         # Linux
+   shasum -a 256 -c SHA256SUMS     # macOS
+   ```
+
+   On Windows, run `Get-FileHash somafm-windows-x64-setup.exe -Algorithm SHA256` and compare the hash with the matching line in `SHA256SUMS`.
+
+3. Verify the attestation with the [GitHub CLI](https://cli.github.com/):
+
+   ```bash
+   gh attestation verify somafm-linux-x86_64.tar.gz --repo DefJunx/somafm
+   ```
+
+A successful attestation check proves the file was built by this repository's release workflow from a specific commit. Attestations exist only for releases from 0.1.1 onwards; 0.1.0 has none.
 
 ## Build from source
 

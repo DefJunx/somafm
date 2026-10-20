@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-20
+
+### Added
+
+- Each release now includes a `SHA256SUMS` file for checking downloads.
+- Release artifacts carry GitHub build provenance attestations, verifiable with `gh attestation verify`.
+- README section on verifying downloads.
+
 ## [0.1.0] - 2026-10-20
 
 ### Added
@@ -34,5 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tray menu refresh no longer deadlocks the main thread.
 - Now-playing bar no longer scrolls away after a view transition.
 
-[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/DefJunx/somafm/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/DefJunx/somafm/releases/tag/v0.1.0
