@@ -14,4 +14,4 @@ Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agen
 
 ## Versioning
 
-Versions follow [Semantic Versioning](https://semver.org/). Release tags are `v<version>` (they trigger `.github/workflows/release.yml`) and match the version in `package.json` and `src-tauri/tauri.conf.json`.
+Versions follow [Semantic Versioning](https://semver.org/). Release tags are `v<version>` (they trigger `.github/workflows/release.yml`) and match the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (refresh `Cargo.lock` after bumping).
