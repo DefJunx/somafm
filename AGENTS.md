@@ -11,3 +11,7 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 ### Domain docs
 
 Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Versioning
+
+Versions follow [Semantic Versioning](https://semver.org/). Release tags are `v<version>` (they trigger `.github/workflows/release.yml`) and match the version in `package.json` and `src-tauri/tauri.conf.json`.
