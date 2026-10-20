@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            name: linux
+          - os: macos-latest
+            name: macos
+          - os: windows-latest
+            name: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux dependencies
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev libasound2-dev libdbus-1-dev libssl-dev pkg-config
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build (Linux)
+        if: matrix.name == 'linux'
+        run: pnpm tauri build --no-bundle
+
+      - name: Build (macOS)
+        if: matrix.name == 'macos'
+        run: pnpm build:macos
+
+      - name: Build (Windows)
+        if: matrix.name == 'windows'
+        run: pnpm build:windows
+
+      - name: Package (Linux)
+        if: matrix.name == 'linux'
+        run: |
+          # Mirror the repo layout so scripts/install-linux.sh works unchanged.
+          d=somafm-linux-x86_64
+          mkdir -p $d/scripts $d/src-tauri/icons $d/src-tauri/target/release
+          cp src-tauri/target/release/somafm $d/src-tauri/target/release/
+          cp src-tauri/icons/icon.png $d/src-tauri/icons/
+          cp somafm.desktop $d/
+          cp scripts/install-linux.sh $d/scripts/
+          tar czf $d.tar.gz $d
+
+      - name: Package (macOS)
+        if: matrix.name == 'macos'
+        run: |
+          cd src-tauri/target/release/bundle/macos
+          ditto -c -k --sequesterRsrc --keepParent somafm.app "$GITHUB_WORKSPACE/somafm-macos-aarch64.zip"
+
+      - name: Package (Windows)
+        if: matrix.name == 'windows'
+        shell: bash
+        run: cp src-tauri/target/release/bundle/nsis/*-setup.exe somafm-windows-x64-setup.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: somafm-${{ matrix.name }}
+          path: |
+            somafm-linux-x86_64.tar.gz
+            somafm-macos-aarch64.zip
+            somafm-windows-x64-setup.exe
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            echo "Release is only created from a v* tag push." >&2
+            exit 1
+          fi
+          gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "somafm $tag" --generate-notes
