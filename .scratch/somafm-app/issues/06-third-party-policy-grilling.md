@@ -11,3 +11,5 @@ SomaFM's terms (see ticket 02) forbid third-party clients that use their streams
 ## Answer
 
 Personal use only, never distributed (the user never planned to distribute). Consequences: no public releases, installers, app-store listings or published binaries; do not bundle or commit SomaFM artwork, branding or a station snapshot in the repo, fetch at runtime; keep the repo private or at least free of SomaFM assets; no use of SomaFM's name as the app's branding beyond a plain descriptive label.
+
+2026-10-21 update: the "never distributed" stance changed; releases are published on GitHub as a personal passion project.
