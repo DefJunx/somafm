@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-21
+
+### Added
+
+- Smooth audio fades: playback fades in when a Station starts and fades out when you pause, stop, switch Station or quit. Quitting waits briefly for the fade to finish.
+- "Fade audio" toggle in Settings, on by default. Turn it off for instant starts and stops.
+- Live Visualizer on the Player screen: a bar spectrum strip under the Now playing text, in the teal accent colour.
+- "Show visualizer" toggle in Settings. It is off by default if your system asks for reduced motion.
+- Settings popover, opened from the gear in the Grid header.
+
 ## [0.2.0] - 2026-10-21
 
 ### Added
@@ -53,7 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tray menu refresh no longer deadlocks the main thread.
 - Now-playing bar no longer scrolls away after a view transition.
 
-[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/DefJunx/somafm/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/DefJunx/somafm/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/DefJunx/somafm/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/DefJunx/somafm/releases/tag/v0.1.0

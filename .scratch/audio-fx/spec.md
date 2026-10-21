@@ -1,4 +1,6 @@
-# Audio effects spec (0.4.0)
+# Audio effects spec (0.3.0)
+
+Status: resolved (shipped in 0.3.0 on 2026-10-21)
 
 Smooth fades and a live Visualizer. Terms (Fade, Visualizer, Player screen) follow `GLOSSARY.md`. Decision record: [ADR 0003](../../docs/adr/0003-audio-dsp-chain.md).
 
@@ -14,7 +16,7 @@ Smooth fades and a live Visualizer. Terms (Fade, Visualizer, Player screen) foll
 Source: grilling session with the user, 2026-10-21.
 
 ## Tickets
-00 settings popover + v2 migration -> 01 gain ramp -> 02 fades on start/stop/switch/quit -> 03 spectrum tap -> 04 spectrum events gating -> 05 Visualizer UI -> 06 release 0.4.0. 03 is independent of 01/02. 01 and 04 need the settings from 00.
+00 settings popover + v2 migration -> 01 gain ramp -> 02 fades on start/stop/switch/quit -> 03 spectrum tap -> 04 spectrum events gating -> 05 Visualizer UI -> 06 release 0.3.0. 03 is independent of 01/02. 01 and 04 need the settings from 00.
 
 Every ticket: test-first per the v1 test strategy; the gate is `pnpm check` (use `pnpm check:toolbox` on this host).
 
