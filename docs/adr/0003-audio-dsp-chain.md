@@ -15,3 +15,7 @@ A true crossfade needs two simultaneous decoded streams mixed into one output. E
 - Fade durations are fixed (not configurable).
 - New dependency: `rustfft`.
 - Both effects are pure functions over sample buffers, so they are unit-testable with the `NullSink` and the synthetic tone fixture; no audio output is needed in tests.
+- **Short sink queue while fading.** `RodioSink` normally queues about 1 s of decoded packets ahead of the playhead, so a ramp applied to newly decoded samples would only be heard that much later (and dropping the sink would cut unfaded audio). When the decode thread has fading on it opens the sink with a queue of about 6 packets (~150 ms). The same decision (`Option<Fade>`, read once when the decode thread starts) drives both the ramp and the sink's queue length, so a settings toggle mid-playback only applies to the next playback.
+- **Cancel is deferred while fading.** `ChannelReader` normally fails a read as soon as `cancel` is set; with fading on it holds that off for the fade-out plus `FADE_OUT_SLACK` (200 ms) so the decode loop can finish the ramp from data already buffered. The decode loop itself gives up at the same deadline, so a stalled stream or sink after a cancel ends at the deadline and may cut abruptly (accepted).
+- **Pause is stop.** The existing pause is the Stopped state and goes through the same cancel path, so it fades out like a stop; there is no separate pause fade.
+- Quit waits for the fade-out plus a 100 ms margin at most.

@@ -22,7 +22,8 @@ use super::{ErrorKind, PlayerState, Status};
 use crate::feed::Feed;
 
 /// Creates the audio sink on the decode thread (cpal streams may not be `Send`).
-pub type SinkFactory = Arc<dyn Fn() -> Result<Box<dyn PcmSink>, String> + Send + Sync>;
+/// The argument is `low_latency`: true when the stream fades, so the sink keeps a short queue.
+pub type SinkFactory = Arc<dyn Fn(bool) -> Result<Box<dyn PcmSink>, String> + Send + Sync>;
 type Emit = Box<dyn Fn(PlayerState) + Send + Sync>;
 
 /// Network time limits (spec 5.5). Injectable so tests need not wait real seconds.
@@ -49,7 +50,7 @@ impl Default for Timeouts {
 const CONNECT_GRACE: Duration = Duration::from_millis(500);
 
 /// Extra time `shutdown` waits beyond the fade-out itself: the hard cap against a hung decode thread.
-const QUIT_MARGIN: Duration = Duration::from_millis(250);
+const QUIT_MARGIN: Duration = Duration::from_millis(100);
 
 /// Counts live decode threads so `shutdown` can wait for their fade-outs.
 #[derive(Default)]
@@ -147,7 +148,7 @@ impl Player {
                 emit: Box::new(emit),
                 sink_factory,
                 timeouts,
-                fade_audio: AtomicBool::new(false),
+                fade_audio: AtomicBool::new(true),
                 fade: Mutex::new(Fade::DEFAULT),
                 viz: Visualizer::new(rt_for_viz),
                 live: Arc::new(Live::default()),
@@ -192,7 +193,7 @@ impl Player {
         self.inner.dispatch(Event::SetVolume(volume));
     }
 
-    /// Applies to decode threads started afterwards; off by default.
+    /// Applies to decode threads started afterwards; on by default.
     pub fn set_fade_audio(&self, on: bool) {
         self.inner.fade_audio.store(on, Ordering::Relaxed);
     }
@@ -217,7 +218,8 @@ impl Player {
         self.inner.viz.set_window_visible(on);
     }
 
-    /// Replaces the fade durations (tests use short ones).
+    /// Replaces the fade durations (tests use short ones; the durations are fixed in production).
+    #[cfg(test)]
     pub fn set_fade(&self, fade: Fade) {
         *self.inner.fade.lock().unwrap() = fade;
     }
@@ -260,15 +262,15 @@ impl Inner {
             .then(|| *self.fade.lock().unwrap())
     }
 
-    /// The sink factory, with the spectrum tap around each sink while "Show visualizer" is on.
+    /// The sink factory, with the spectrum tap around each sink. The tap is always installed so
+    /// enabling "Show visualizer" mid-stream works; gated off, it only forwards (no FFT).
     /// The tap sits outside the sink, so the fade path (inside the decode loop) is untouched.
     fn tapped_factory(&self) -> SinkFactory {
         let factory = self.sink_factory.clone();
-        if !self.viz.show() {
-            return factory;
-        }
         let viz = self.viz.clone();
-        Arc::new(move || factory().map(|s| Box::new(viz.tap(s)) as Box<dyn PcmSink>))
+        Arc::new(move |low_latency| {
+            factory(low_latency).map(|s| Box::new(viz.tap(s)) as Box<dyn PcmSink>)
+        })
     }
 
     fn execute(self: &Arc<Self>, effect: Effect, state: &PlayerState) {
@@ -533,7 +535,7 @@ fn stream_thread(
     };
     let end = decode_stream(
         StreamSource::new(IcyReader::new(reader, metaint, on_title)),
-        move || factory(),
+        move || factory(fade.is_some()),
         volume,
         cancel,
         fade,
@@ -560,7 +562,7 @@ fn stream_thread(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::player::decode::tests::{Counts, MP3, NullSink, Rec, RecSink};
+    use crate::player::decode::tests::{Counts, MP3, NullSink, Rec, RecSink, peak};
     use crate::player::{Status, pls::resolve_mirrors};
     use std::collections::HashMap;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -705,7 +707,7 @@ mod tests {
         let counts = Counts::default();
         let c = counts.clone();
         let factory: SinkFactory =
-            Arc::new(move || Ok(Box::new(NullSink(c.clone())) as Box<dyn PcmSink>));
+            Arc::new(move |_| Ok(Box::new(NullSink(c.clone())) as Box<dyn PcmSink>));
         rig_full(stub, timeouts, factory, counts).await
     }
 
@@ -1012,7 +1014,7 @@ mod tests {
             std::thread::spawn(move || {
                 let counts = Counts::default();
                 let factory: SinkFactory =
-                    Arc::new(move || Ok(Box::new(NullSink(counts.clone())) as Box<dyn PcmSink>));
+                    Arc::new(move |_| Ok(Box::new(NullSink(counts.clone())) as Box<dyn PcmSink>));
                 stream_thread(
                     &url,
                     1,
@@ -1048,7 +1050,7 @@ mod tests {
         let counts = Counts::default();
         let k = counts.clone();
         let factory: SinkFactory =
-            Arc::new(move || Ok(Box::new(NullSink(k.clone())) as Box<dyn PcmSink>));
+            Arc::new(move |_| Ok(Box::new(NullSink(k.clone())) as Box<dyn PcmSink>));
         let k2 = counts.clone();
         stream_thread(
             &url,
@@ -1092,7 +1094,7 @@ mod tests {
         let counts = Counts::default();
         let c = counts.clone();
         let factory: SinkFactory =
-            Arc::new(move || Ok(Box::new(NullSink(c.clone())) as Box<dyn PcmSink>));
+            Arc::new(move |_| Ok(Box::new(NullSink(c.clone())) as Box<dyn PcmSink>));
         stream_thread(
             url,
             1,
@@ -1180,10 +1182,6 @@ mod tests {
         }
     }
 
-    fn peak(s: &[f32]) -> f32 {
-        s.iter().fold(0f32, |a, b| a.max(b.abs()))
-    }
-
     const TEST_FADE: Fade = Fade {
         fade_in: Duration::from_millis(400),
         fade_out: Duration::from_millis(200),
@@ -1198,7 +1196,7 @@ mod tests {
         .await;
         let recs = Arc::new(Mutex::new(Vec::<Rec>::new()));
         let r2 = recs.clone();
-        let factory: SinkFactory = Arc::new(move || {
+        let factory: SinkFactory = Arc::new(move |_| {
             let rec = Rec::default();
             r2.lock().unwrap().push(rec.clone());
             Ok(Box::new(Paced(RecSink(rec))) as Box<dyn PcmSink>)
@@ -1316,7 +1314,7 @@ mod tests {
         .await;
         let made = Arc::new(AtomicBool::new(false));
         let m = made.clone();
-        let factory: SinkFactory = Arc::new(move || {
+        let factory: SinkFactory = Arc::new(move |_| {
             m.store(true, Ordering::Relaxed);
             Ok(Box::new(Hung(r.clone())) as Box<dyn PcmSink>)
         });
@@ -1441,12 +1439,38 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn no_events_and_no_tap_when_the_setting_is_off() {
+    async fn no_events_and_no_fft_work_when_the_setting_is_off() {
         let (_stub, rig, events) = viz_rig(false, true).await;
         rig.player.set_visualizer_active(true);
         assert_quiet(&events).await;
         assert_eq!(count(&events), 0);
-        assert!(!rig.player.inner.viz.has_tap(), "tap not installed");
+        let bands = rig
+            .player
+            .inner
+            .viz
+            .latest_bands()
+            .expect("tap is always installed");
+        assert_eq!(*bands.lock().unwrap(), [0.0; BANDS], "no analysis ran");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn enabling_the_setting_mid_stream_starts_events() {
+        let (_stub, rig, events) = viz_rig(false, true).await;
+        rig.player.set_visualizer_active(true);
+        assert_quiet(&events).await;
+        rig.player.set_show_visualizer(true);
+        until("events", || count(&events) > 3).await;
+    }
+
+    /// Pause is the stopped state in this app, so Stop covers the ticket's "pause".
+    #[tokio::test(flavor = "multi_thread")]
+    async fn events_stop_on_pause_which_is_stop() {
+        let (_stub, rig, events) = viz_rig(true, true).await;
+        rig.player.set_visualizer_active(true);
+        until("events", || count(&events) > 3).await;
+        rig.player.stop();
+        wait_for(&rig, 0, |s| s.status == Status::Stopped).await;
+        assert_quiet(&events).await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -1454,8 +1478,114 @@ mod tests {
         let (_stub, rig, events) = viz_rig(true, true).await;
         rig.player.set_visualizer_active(true);
         until("events", || count(&events) > 3).await;
-        assert!(rig.player.inner.viz.has_tap());
         rig.player.set_show_visualizer(false);
         assert_quiet(&events).await;
+    }
+    /// Like `fade_rig`, but the sinks also record the `low_latency` they were opened with,
+    /// and the feed has two Stations ("s1", "s2") streaming the same endless tone.
+    async fn two_station_rig() -> (Stub, Rig, Arc<Mutex<Vec<(Rec, bool)>>>) {
+        let url = endless_server();
+        let stub = Stub::start(move |base| {
+            let pl = |n: &str| serde_json::json!([{"url": format!("{base}/{n}.pls"), "format": "mp3", "quality": "highest"}]);
+            let channels = serde_json::json!({"channels": [
+                {"id": "s1", "title": "S1", "genre": "a", "listeners": "1", "playlists": pl("a")},
+                {"id": "s2", "title": "S2", "genre": "a", "listeners": "1", "playlists": pl("b")},
+            ]});
+            let mut r = Routes::new();
+            r.insert("/channels.json".into(), (200, channels.to_string().into_bytes()));
+            r.insert("/a.pls".into(), (200, pls(std::slice::from_ref(&url))));
+            r.insert("/b.pls".into(), (200, pls(std::slice::from_ref(&url))));
+            r
+        })
+        .await;
+        let recs = Arc::new(Mutex::new(Vec::<(Rec, bool)>::new()));
+        let r2 = recs.clone();
+        let factory: SinkFactory = Arc::new(move |low| {
+            let rec = Rec::default();
+            r2.lock().unwrap().push((rec.clone(), low));
+            Ok(Box::new(Paced(RecSink(rec))) as Box<dyn PcmSink>)
+        });
+        let rig = rig_full(&stub, Timeouts::default(), factory, Counts::default()).await;
+        rig.player.set_fade(TEST_FADE);
+        (stub, rig, recs)
+    }
+
+    fn assert_fades_in(rec: &Rec) {
+        let s = rec.samples.lock().unwrap();
+        let full = peak(&s[50_000..90_000]);
+        assert!(peak(&s[2400..3600]) < 0.3 * full, "fades in");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn station_switch_fades_the_old_sink_out_and_the_new_one_in() {
+        let (_stub, rig, recs) = two_station_rig().await;
+        rig.player.play("s1").unwrap();
+        until("first sink", || !recs.lock().unwrap().is_empty()).await;
+        let old = recs.lock().unwrap()[0].0.clone();
+        until("audio", || len(&old) > 250_000).await;
+        rig.player.play("s2").unwrap();
+        until("second sink", || recs.lock().unwrap().len() == 2).await;
+        let new = recs.lock().unwrap()[1].0.clone();
+        until("old drop", || old.dropped_at.lock().unwrap().is_some()).await;
+        until("new audio", || len(&new) > 100_000).await;
+        {
+            let s = old.samples.lock().unwrap();
+            assert_eq!(old.dropped_at.lock().unwrap().unwrap(), s.len());
+            assert_eq!(
+                peak(&s[s.len() - 2000..]),
+                0.0,
+                "old sink silent when dropped"
+            );
+            assert!(peak(&s[s.len() - 40_000..]) > 0.0);
+        }
+        assert_fades_in(&new);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn setting_is_read_when_the_decode_thread_starts() {
+        let (_stub, rig, recs) = two_station_rig().await;
+        rig.player.set_fade_audio(true);
+        rig.player.play("s1").unwrap();
+        until("first sink", || !recs.lock().unwrap().is_empty()).await;
+        let (first, low) = recs.lock().unwrap()[0].clone();
+        assert!(low, "fading streams ask for a short queue");
+        until("audio", || len(&first) > 100_000).await;
+        rig.player.set_fade_audio(false); // mid-stream: this stream keeps fading
+        rig.player.stop();
+        until("drop", || first.dropped_at.lock().unwrap().is_some()).await;
+        {
+            let s = first.samples.lock().unwrap();
+            assert_eq!(peak(&s[s.len() - 2000..]), 0.0, "still faded out");
+        }
+        rig.player.play("s2").unwrap();
+        until("second sink", || recs.lock().unwrap().len() == 2).await;
+        let (second, low) = recs.lock().unwrap()[1].clone();
+        assert!(!low, "next playback runs without fades");
+        until("audio", || len(&second) > 100_000).await;
+        let s = second.samples.lock().unwrap();
+        assert!(
+            peak(&s[2400..3600]) > 0.5 * peak(&s[50_000..100_000]),
+            "no fade-in"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn reconnect_fades_the_new_sink_in() {
+        let stub = Stub::start(|base| station_routes(base, &["/mp3"], &[("/mp3", 200, MP3)])).await;
+        let recs = Arc::new(Mutex::new(Vec::<Rec>::new()));
+        let r2 = recs.clone();
+        let factory: SinkFactory = Arc::new(move |_| {
+            let rec = Rec::default();
+            r2.lock().unwrap().push(rec.clone());
+            Ok(Box::new(RecSink(rec)) as Box<dyn PcmSink>)
+        });
+        let rig = rig_full(&stub, Timeouts::default(), factory, Counts::default()).await;
+        rig.player.set_fade(TEST_FADE);
+        rig.player.play("s1").unwrap();
+        // The stub closes after one pass of the tone, so the player reconnects.
+        until("second sink", || recs.lock().unwrap().len() >= 2).await;
+        let second = recs.lock().unwrap()[1].clone();
+        until("audio", || len(&second) > 95_000).await;
+        assert_fades_in(&second);
     }
 }

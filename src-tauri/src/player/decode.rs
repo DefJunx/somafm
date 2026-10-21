@@ -467,7 +467,7 @@ pub(crate) mod tests {
         (end, rec)
     }
 
-    fn peak(s: &[f32]) -> f32 {
+    pub fn peak(s: &[f32]) -> f32 {
         s.iter().fold(0f32, |a, b| a.max(b.abs()))
     }
 
