@@ -9,6 +9,8 @@
   import Icon from "../lib/Icon.svelte";
   import HeartButton from "../lib/HeartButton.svelte";
   import StatusBadge from "../lib/StatusBadge.svelte";
+  import Visualizer from "../lib/Visualizer.svelte";
+  import { setVisualizerActive } from "../lib/api";
 
   let { onback, player = playerStore, stations = stationsStore, settings = settingsStore, history = historyStore, liked = likedStore }: {
     onback?: () => void;
@@ -56,6 +58,12 @@
     if (raw === null && loadedKey.startsWith(`${id}\n`)) return;
     if (`${id}\n${raw ?? ""}` !== loadedKey) fetchHistory(id, raw);
   });
+  // Rust emits `spectrum` only while active: on while this screen is visible, off on hide and unmount (back to the Grid).
+  $effect(() => {
+    if (!visible) return;
+    setVisualizerActive(true).catch(() => {});
+    return () => { setVisualizerActive(false).catch(() => {}); };
+  });
   const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 
   const favourite = $derived(s.stationId !== null && settings.favourites.includes(s.stationId));
@@ -95,6 +103,9 @@
           <HeartButton store={liked} stationId={s.stationId} raw={s.nowPlaying.raw} />
         {/if}
       </div>
+      {#if settings.showVisualizer}
+        <Visualizer active={visible} playing={s.status.kind === "playing"} />
+      {/if}
       <p class="status" role="status"><StatusBadge kind={s.status.kind} label={statusLabel(s)} text={statusText(s) || statusLabel(s)} /></p>
       <button class="main" class:primary={action.label === "Play"} onclick={() => runPrimaryAction(player)} disabled={action.busy} aria-busy={action.busy}>
         {#if action.busy}

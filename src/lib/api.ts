@@ -42,6 +42,11 @@ export const toggleFavourite = (stationId: string) => invoke<void>("toggle_favou
 export const setFavouritesOnly = (value: boolean) => invoke<void>("set_favourites_only", { value });
 export const setFadeAudio = (value: boolean) => invoke<void>("set_fade_audio", { value });
 export const setShowVisualizer = (value: boolean) => invoke<void>("set_show_visualizer", { value });
+/** The Player screen is (not) showing the Visualizer; Rust emits `spectrum` events only while it is. */
+export const setVisualizerActive = (active: boolean) => invoke<void>("set_visualizer_active", { active });
+/** 32 band magnitudes (0..1, lowest frequency first), about 30 per second. */
+export const onSpectrum = (cb: (bands: number[]) => void): Promise<UnlistenFn> =>
+  listen<number[]>("spectrum", (e) => cb(e.payload));
 /** Reports the OS reduced-motion preference; Rust applies it only when settings.json was just created or migrated. */
 export const applyReducedMotionDefault = (reduced: boolean) => invoke<void>("apply_reduced_motion_default", { reduced });
 export const onSettingsChanged = (cb: (s: SettingsView) => void): Promise<UnlistenFn> =>
