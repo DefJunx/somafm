@@ -5,13 +5,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
-use super::decode::{DecodeEnd, Fade, PcmSink, decode_stream, f32_to_bits};
+use super::decode::{DecodeEnd, FADE_OUT_SLACK, Fade, PcmSink, decode_stream, f32_to_bits};
 use super::icy::IcyReader;
 use super::pls::{pick_playlist, resolve_mirrors};
 use super::reducer::{Core, Effect, Event, reduce};
@@ -46,6 +46,32 @@ impl Default for Timeouts {
 /// not pre-empted by the reader (which means "answered but silent").
 const CONNECT_GRACE: Duration = Duration::from_millis(500);
 
+/// Extra time `shutdown` waits beyond the fade-out itself: the hard cap against a hung decode thread.
+const QUIT_MARGIN: Duration = Duration::from_millis(250);
+
+/// Counts live decode threads so `shutdown` can wait for their fade-outs.
+#[derive(Default)]
+struct Live {
+    count: Mutex<usize>,
+    gone: Condvar,
+}
+
+struct LiveGuard(Arc<Live>);
+
+impl LiveGuard {
+    fn enter(live: &Arc<Live>) -> Self {
+        *live.count.lock().unwrap() += 1;
+        Self(live.clone())
+    }
+}
+
+impl Drop for LiveGuard {
+    fn drop(&mut self) {
+        *self.0.count.lock().unwrap() -= 1;
+        self.0.gone.notify_all();
+    }
+}
+
 #[derive(Default)]
 struct ResolvedMirrors {
     attempt: u64,
@@ -72,6 +98,7 @@ struct Inner {
     /// "Fade audio" setting; each decode thread reads it once, when it starts.
     fade_audio: AtomicBool,
     fade: Mutex<Fade>,
+    live: Arc<Live>,
     /// Mirrors resolved for connection attempt `attempt`.
     mirrors: Mutex<ResolvedMirrors>,
     active: Mutex<Active>,
@@ -118,6 +145,7 @@ impl Player {
                 timeouts,
                 fade_audio: AtomicBool::new(false),
                 fade: Mutex::new(Fade::DEFAULT),
+                live: Arc::new(Live::default()),
                 mirrors: Mutex::new(ResolvedMirrors::default()),
                 active: Mutex::new(Active::default()),
             }),
@@ -167,6 +195,23 @@ impl Player {
     /// Replaces the fade durations (tests use short ones).
     pub fn set_fade(&self, fade: Fade) {
         *self.inner.fade.lock().unwrap() = fade;
+    }
+
+    /// Quit path: stops playback and, with fades on, waits for the fade-out to
+    /// finish, but never longer than the fade-out plus `QUIT_MARGIN`.
+    pub fn shutdown(&self) {
+        let fade = self.inner.current_fade();
+        self.stop();
+        let Some(fade) = fade else { return };
+        let live = &self.inner.live;
+        let _ = live
+            .gone
+            .wait_timeout_while(
+                live.count.lock().unwrap(),
+                fade.fade_out + QUIT_MARGIN,
+                |n| *n > 0,
+            )
+            .unwrap();
     }
 }
 
@@ -244,7 +289,9 @@ impl Inner {
                 let volume = self.volume.clone();
                 let factory = self.sink_factory.clone();
                 let timeouts = self.timeouts;
+                let live = LiveGuard::enter(&self.live);
                 std::thread::spawn(move || {
+                    let _live = live;
                     let fade = this.current_fade();
                     let notify = move |e: Event| this.dispatch(e);
                     match url {
@@ -337,6 +384,11 @@ const POLL: Duration = Duration::from_millis(100);
 struct ChannelReader {
     rx: mpsc::Receiver<Msg>,
     cancel: Arc<AtomicBool>,
+    /// While set, a cancel is not acted on until `cancel_grace` has passed, so
+    /// the decode loop can finish its fade-out from the data already in flight.
+    hold_cancel: Arc<AtomicBool>,
+    cancel_grace: Duration,
+    cancelled_at: Option<Instant>,
     connected: Arc<AtomicBool>,
     timeouts: Timeouts,
     started: Instant,
@@ -349,7 +401,11 @@ impl ChannelReader {
     fn next(&mut self) -> std::io::Result<Option<Msg>> {
         loop {
             if self.cancel.load(Ordering::Relaxed) {
-                return Err(std::io::Error::other("cancelled"));
+                let since = *self.cancelled_at.get_or_insert_with(Instant::now);
+                if !self.hold_cancel.load(Ordering::Relaxed) || since.elapsed() >= self.cancel_grace
+                {
+                    return Err(std::io::Error::other("cancelled"));
+                }
             }
             let timed_out = if self.connected.load(Ordering::Relaxed) {
                 self.last_data.elapsed() >= self.timeouts.stall
@@ -411,9 +467,13 @@ fn stream_thread(
         }
     };
     let connected = Arc::new(AtomicBool::new(false));
+    let hold_cancel = Arc::new(AtomicBool::new(false));
     let mut reader = ChannelReader {
         rx: spawn_pump(url.to_string(), timeouts.connect),
         cancel: cancel.clone(),
+        hold_cancel: hold_cancel.clone(),
+        cancel_grace: fade.map_or(Duration::ZERO, |f| f.fade_out + FADE_OUT_SLACK),
+        cancelled_at: None,
         connected: connected.clone(),
         timeouts,
         started: Instant::now(),
@@ -444,6 +504,7 @@ fn stream_thread(
             let notify = notify.clone();
             move || {
                 connected.store(true, Ordering::Relaxed);
+                hold_cancel.store(fade.is_some(), Ordering::Relaxed);
                 notify(Event::Connected { attempt })
             }
         },
@@ -462,7 +523,7 @@ fn stream_thread(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::player::decode::tests::{Counts, MP3, NullSink};
+    use crate::player::decode::tests::{Counts, MP3, NullSink, Rec, RecSink};
     use crate::player::{Status, pls::resolve_mirrors};
     use std::collections::HashMap;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -1058,5 +1119,206 @@ mod tests {
         })
         .await;
         assert_eq!(*rig.counts.samples.lock().unwrap(), 0);
+    }
+    // --- Fades (ADR 0003) ---
+
+    /// Live-like stream: the tone repeated until the client goes away.
+    fn endless_server() -> String {
+        scripted_server(|_, mut sock| {
+            let _ = std::io::Write::write_all(&mut sock, &http_head());
+            while std::io::Write::write_all(&mut sock, MP3).is_ok() {}
+        })
+    }
+
+    /// Records each sink's samples; every push takes a little real time so a
+    /// cancel arrives mid-stream.
+    struct Paced(RecSink);
+    impl PcmSink for Paced {
+        fn push(&mut self, s: &[f32], ch: u16, rate: u32, c: &AtomicBool) {
+            std::thread::sleep(Duration::from_millis(2));
+            self.0.push(s, ch, rate, c);
+        }
+        fn set_volume(&mut self, v: f32) {
+            self.0.set_volume(v);
+        }
+    }
+
+    fn peak(s: &[f32]) -> f32 {
+        s.iter().fold(0f32, |a, b| a.max(b.abs()))
+    }
+
+    const TEST_FADE: Fade = Fade {
+        fade_in: Duration::from_millis(400),
+        fade_out: Duration::from_millis(200),
+    };
+
+    /// A rig whose sinks are recorded in the returned list, playing `endless_server`.
+    async fn fade_rig(fade_audio: bool) -> (Stub, Rig, Arc<Mutex<Vec<Rec>>>) {
+        let stub = Stub::start({
+            let url = endless_server();
+            move |base| station_routes_abs(base, &[url], &[])
+        })
+        .await;
+        let recs = Arc::new(Mutex::new(Vec::<Rec>::new()));
+        let r2 = recs.clone();
+        let factory: SinkFactory = Arc::new(move || {
+            let rec = Rec::default();
+            r2.lock().unwrap().push(rec.clone());
+            Ok(Box::new(Paced(RecSink(rec))) as Box<dyn PcmSink>)
+        });
+        let rig = rig_full(&stub, Timeouts::default(), factory, Counts::default()).await;
+        rig.player.set_fade_audio(fade_audio);
+        rig.player.set_fade(TEST_FADE);
+        (stub, rig, recs)
+    }
+
+    async fn until(what: &str, f: impl Fn() -> bool) {
+        for _ in 0..200 {
+            if f() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        panic!("timed out waiting for {what}");
+    }
+
+    fn len(rec: &Rec) -> usize {
+        rec.samples.lock().unwrap().len()
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn fade_on_rises_at_start_and_falls_to_zero_before_the_sink_drops() {
+        let (_stub, rig, recs) = fade_rig(true).await;
+        rig.player.play("s1").unwrap();
+        until("sink", || !recs.lock().unwrap().is_empty()).await;
+        let rec = recs.lock().unwrap()[0].clone();
+        until("audio", || len(&rec) > 250_000).await;
+        {
+            let s = rec.samples.lock().unwrap();
+            let full = peak(&s[200_000..250_000]);
+            // (The first ~2000 samples are encoder delay; 2400..3600 is early in the ramp.)
+            assert!(peak(&s[2400..3600]) < 0.3 * full, "fades in");
+        }
+        rig.player.stop();
+        until("sink drop", || rec.dropped_at.lock().unwrap().is_some()).await;
+        let s = rec.samples.lock().unwrap();
+        assert_eq!(rec.dropped_at.lock().unwrap().unwrap(), s.len());
+        let full = peak(&s[200_000..250_000]);
+        let peaks: Vec<f32> = s[s.len() - 40_000..].chunks(4_000).map(peak).collect();
+        assert!(peaks.windows(2).all(|w| w[1] <= w[0] * 1.01), "{peaks:?}");
+        assert!(peaks[0] > 0.5 * full && peaks[9] == 0.0, "{peaks:?}");
+        assert!(
+            peaks.iter().any(|&p| p > 0.0 && p < 0.9 * peaks[0]),
+            "ramped: {peaks:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn fade_off_keeps_the_old_behaviour() {
+        let (_stub, rig, recs) = fade_rig(false).await;
+        rig.player.play("s1").unwrap();
+        until("sink", || !recs.lock().unwrap().is_empty()).await;
+        let rec = recs.lock().unwrap()[0].clone();
+        until("audio", || len(&rec) > 100_000).await;
+        {
+            let s = rec.samples.lock().unwrap();
+            assert!(
+                peak(&s[2400..3600]) > 0.5 * peak(&s[50_000..100_000]),
+                "no fade-in"
+            );
+        }
+        rig.player.stop();
+        until("sink drop", || rec.dropped_at.lock().unwrap().is_some()).await;
+        let s = rec.samples.lock().unwrap();
+        assert!(peak(&s[s.len() - 2000..]) > 0.0, "cut without a fade-out");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn shutdown_waits_for_the_fade_out_within_the_cap() {
+        let (_stub, rig, recs) = fade_rig(true).await;
+        rig.player.play("s1").unwrap();
+        until("sink", || !recs.lock().unwrap().is_empty()).await;
+        let rec = recs.lock().unwrap()[0].clone();
+        until("audio", || len(&rec) > 100_000).await;
+        let player = rig.player.clone();
+        let t = Instant::now();
+        tokio::task::spawn_blocking(move || player.shutdown())
+            .await
+            .unwrap();
+        assert!(
+            t.elapsed() < TEST_FADE.fade_out + QUIT_MARGIN,
+            "{:?}",
+            t.elapsed()
+        );
+        let s = rec.samples.lock().unwrap();
+        assert_eq!(
+            rec.dropped_at.lock().unwrap().unwrap(),
+            s.len(),
+            "sink dropped"
+        );
+        assert_eq!(peak(&s[s.len() - 2..]), 0.0, "faded out before exit");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn shutdown_gives_up_on_a_hung_decode_thread() {
+        struct Hung(Arc<AtomicBool>);
+        impl PcmSink for Hung {
+            fn push(&mut self, _: &[f32], _: u16, _: u32, _: &AtomicBool) {
+                while !self.0.load(Ordering::Relaxed) {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            }
+            fn set_volume(&mut self, _: f32) {}
+        }
+        let release = Arc::new(AtomicBool::new(false));
+        let r = release.clone();
+        let stub = Stub::start({
+            let url = endless_server();
+            move |base| station_routes_abs(base, &[url], &[])
+        })
+        .await;
+        let made = Arc::new(AtomicBool::new(false));
+        let m = made.clone();
+        let factory: SinkFactory = Arc::new(move || {
+            m.store(true, Ordering::Relaxed);
+            Ok(Box::new(Hung(r.clone())) as Box<dyn PcmSink>)
+        });
+        let rig = rig_full(&stub, Timeouts::default(), factory, Counts::default()).await;
+        rig.player.set_fade_audio(true);
+        rig.player.set_fade(TEST_FADE);
+        rig.player.play("s1").unwrap();
+        until("sink", || made.load(Ordering::Relaxed)).await;
+        let player = rig.player.clone();
+        let t = Instant::now();
+        tokio::task::spawn_blocking(move || player.shutdown())
+            .await
+            .unwrap();
+        let took = t.elapsed();
+        release.store(true, Ordering::Relaxed);
+        assert!(
+            took >= TEST_FADE.fade_out + QUIT_MARGIN - Duration::from_millis(20),
+            "{took:?}"
+        );
+        assert!(
+            took < TEST_FADE.fade_out + QUIT_MARGIN + Duration::from_millis(300),
+            "{took:?}"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn shutdown_without_fade_returns_immediately() {
+        let (_stub, rig, recs) = fade_rig(false).await;
+        rig.player.play("s1").unwrap();
+        until("sink", || !recs.lock().unwrap().is_empty()).await;
+        let player = rig.player.clone();
+        let t = Instant::now();
+        tokio::task::spawn_blocking(move || player.shutdown())
+            .await
+            .unwrap();
+        assert!(
+            t.elapsed() < Duration::from_millis(100),
+            "{:?}",
+            t.elapsed()
+        );
     }
 }

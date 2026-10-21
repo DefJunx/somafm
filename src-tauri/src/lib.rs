@@ -172,6 +172,10 @@ pub fn run() {
                 tray::set_main_visible(app, true);
             }
             if let tauri::RunEvent::Exit = event {
+                // Fade out and wait (capped) so quitting does not click.
+                if let Some(p) = app.try_state::<Player>() {
+                    p.shutdown();
+                }
                 // Don't lose a volume change still inside its debounce window.
                 if let Some(s) = app.try_state::<SettingsService>() {
                     s.flush();
