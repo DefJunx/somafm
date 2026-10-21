@@ -1,5 +1,7 @@
 # Track history and Liked tracks spec (0.2.0)
 
+Status: resolved (shipped in 0.2.0 on 2026-10-21, manually verified)
+
 Show a Station's recent tracks on the Player screen and let the user heart tracks into a Liked view. Terms (Station, Player screen, Now playing, Station history, Liked track) follow `GLOSSARY.md`. No ADR needed.
 
 ## Decisions (agreed, do not reopen)
