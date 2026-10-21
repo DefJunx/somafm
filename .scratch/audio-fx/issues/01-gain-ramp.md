@@ -1,7 +1,7 @@
 # 01 Per-sample gain ramp in the decode loop
 
 Status: ready-for-agent
-Blocked by: [auto-update 01](../../auto-update/issues/01-settings-popover-v2.md)
+Blocked by: 00
 
 ## Goal
 The decode loop can apply a linear gain ramp to PCM samples, controlled by the "Fade audio" setting.

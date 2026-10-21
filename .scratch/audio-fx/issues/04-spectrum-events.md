@@ -1,7 +1,7 @@
 # 04 Spectrum events, gated by visibility and playback
 
 Status: ready-for-agent
-Blocked by: 03, [auto-update 01](../../auto-update/issues/01-settings-popover-v2.md)
+Blocked by: 00, 03
 
 ## Goal
 Rust emits spectrum events at about 30 fps only when something can show them.

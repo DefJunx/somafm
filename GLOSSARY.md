@@ -29,5 +29,3 @@
 **Fade**: A short gain ramp applied to the audio when playback starts, stops or switches Station, so the change is not abrupt.
 
 **Visualizer**: The small live bar spectrum of the audio shown on the Player screen while a Station is playing.
-
-**Update banner**: The dismissible in-app notice offering a newer app version, with release notes and "Restart to update" / "Later".
