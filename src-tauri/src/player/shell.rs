@@ -16,7 +16,9 @@ use super::icy::IcyReader;
 use super::pls::{pick_playlist, resolve_mirrors};
 use super::reducer::{Core, Effect, Event, reduce};
 use super::source::StreamSource;
-use super::{ErrorKind, PlayerState};
+use super::spectrum::BANDS;
+use super::visualizer::Visualizer;
+use super::{ErrorKind, PlayerState, Status};
 use crate::feed::Feed;
 
 /// Creates the audio sink on the decode thread (cpal streams may not be `Send`).
@@ -98,6 +100,7 @@ struct Inner {
     /// "Fade audio" setting; each decode thread reads it once, when it starts.
     fade_audio: AtomicBool,
     fade: Mutex<Fade>,
+    viz: Arc<Visualizer>,
     live: Arc<Live>,
     /// Mirrors resolved for connection attempt `attempt`.
     mirrors: Mutex<ResolvedMirrors>,
@@ -129,6 +132,7 @@ impl Player {
         emit: impl Fn(PlayerState) + Send + Sync + 'static,
     ) -> Self {
         let state = PlayerState::default();
+        let rt_for_viz = rt.clone();
         Self {
             inner: Arc::new(Inner {
                 volume: Arc::new(AtomicU32::new(f32_to_bits(state.volume))),
@@ -145,6 +149,7 @@ impl Player {
                 timeouts,
                 fade_audio: AtomicBool::new(false),
                 fade: Mutex::new(Fade::DEFAULT),
+                viz: Visualizer::new(rt_for_viz),
                 live: Arc::new(Live::default()),
                 mirrors: Mutex::new(ResolvedMirrors::default()),
                 active: Mutex::new(Active::default()),
@@ -192,6 +197,26 @@ impl Player {
         self.inner.fade_audio.store(on, Ordering::Relaxed);
     }
 
+    /// Receives the 32 bands at about 30 fps while the Visualizer is gated on.
+    pub fn set_spectrum_emit(&self, emit: impl Fn(&[f32; BANDS]) + Send + Sync + 'static) {
+        self.inner.viz.set_emit(emit);
+    }
+
+    /// The Player screen is open (frontend `set_visualizer_active`).
+    pub fn set_visualizer_active(&self, on: bool) {
+        self.inner.viz.set_active(on);
+    }
+
+    /// "Show visualizer": new decode threads get a tap only while it is on.
+    pub fn set_show_visualizer(&self, on: bool) {
+        self.inner.viz.set_show(on);
+    }
+
+    /// Main window shown (not hidden or minimised).
+    pub fn set_window_visible(&self, on: bool) {
+        self.inner.viz.set_window_visible(on);
+    }
+
     /// Replaces the fade durations (tests use short ones).
     pub fn set_fade(&self, fade: Fade) {
         *self.inner.fade.lock().unwrap() = fade;
@@ -226,12 +251,24 @@ impl Inner {
         for effect in effects {
             self.execute(effect, &guard.state);
         }
+        self.viz.set_playing(guard.state.status == Status::Playing);
     }
 
     fn current_fade(&self) -> Option<Fade> {
         self.fade_audio
             .load(Ordering::Relaxed)
             .then(|| *self.fade.lock().unwrap())
+    }
+
+    /// The sink factory, with the spectrum tap around each sink while "Show visualizer" is on.
+    /// The tap sits outside the sink, so the fade path (inside the decode loop) is untouched.
+    fn tapped_factory(&self) -> SinkFactory {
+        let factory = self.sink_factory.clone();
+        if !self.viz.show() {
+            return factory;
+        }
+        let viz = self.viz.clone();
+        Arc::new(move || factory().map(|s| Box::new(viz.tap(s)) as Box<dyn PcmSink>))
     }
 
     fn execute(self: &Arc<Self>, effect: Effect, state: &PlayerState) {
@@ -287,7 +324,7 @@ impl Inner {
                 }
                 let this = self.clone();
                 let volume = self.volume.clone();
-                let factory = self.sink_factory.clone();
+                let factory = self.tapped_factory();
                 let timeouts = self.timeouts;
                 let live = LiveGuard::enter(&self.live);
                 std::thread::spawn(move || {
@@ -1320,5 +1357,105 @@ mod tests {
             "{:?}",
             t.elapsed()
         );
+    }
+
+    // --- Visualizer events ---
+
+    type Events = Arc<Mutex<usize>>;
+
+    /// A playing rig (endless stream, `NullSink`) with the spectrum emitter counting events.
+    async fn viz_rig(show: bool, start: bool) -> (Stub, Rig, Events) {
+        let stub = Stub::start({
+            let url = endless_server();
+            move |base| station_routes_abs(base, &[url], &[])
+        })
+        .await;
+        let rig = rig(&stub).await;
+        let events: Events = Arc::default();
+        let e = events.clone();
+        rig.player.set_spectrum_emit(move |b| {
+            assert_eq!(b.len(), BANDS);
+            *e.lock().unwrap() += 1;
+        });
+        rig.player.set_show_visualizer(show);
+        if start {
+            rig.player.play("s1").unwrap();
+            wait_for(&rig, 0, is_playing).await;
+        }
+        (stub, rig, events)
+    }
+
+    fn count(e: &Events) -> usize {
+        *e.lock().unwrap()
+    }
+
+    async fn settle() {
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+
+    /// No event arrives for a while.
+    async fn assert_quiet(e: &Events) {
+        settle().await;
+        let n = count(e);
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        assert_eq!(count(e), n, "events still flowing");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn events_flow_at_about_30fps_only_while_active_and_playing() {
+        let (_stub, rig, events) = viz_rig(true, true).await;
+        assert_quiet(&events).await; // playing but the Player screen is not open
+        rig.player.set_visualizer_active(true);
+        let from = count(&events);
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        let n = count(&events) - from;
+        assert!((10..=24).contains(&n), "{n} events in 600 ms");
+        rig.player.set_visualizer_active(false);
+        assert_quiet(&events).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn events_stop_on_stop_and_resume_on_play() {
+        let (_stub, rig, events) = viz_rig(true, true).await;
+        rig.player.set_visualizer_active(true);
+        until("events", || count(&events) > 3).await;
+        rig.player.stop();
+        assert_quiet(&events).await;
+        let n = rig.snaps.lock().unwrap().len();
+        rig.player.play("s1").unwrap();
+        wait_for(&rig, n, is_playing).await;
+        let from = count(&events);
+        until("events resume", || count(&events) > from + 3).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn events_stop_while_the_window_is_hidden() {
+        let (_stub, rig, events) = viz_rig(true, true).await;
+        rig.player.set_visualizer_active(true);
+        until("events", || count(&events) > 3).await;
+        rig.player.set_window_visible(false);
+        assert_quiet(&events).await;
+        rig.player.set_window_visible(true);
+        let from = count(&events);
+        until("events resume", || count(&events) > from + 3).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn no_events_and_no_tap_when_the_setting_is_off() {
+        let (_stub, rig, events) = viz_rig(false, true).await;
+        rig.player.set_visualizer_active(true);
+        assert_quiet(&events).await;
+        assert_eq!(count(&events), 0);
+        assert!(!rig.player.inner.viz.has_tap(), "tap not installed");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn turning_the_setting_off_mid_stream_stops_events() {
+        let (_stub, rig, events) = viz_rig(true, true).await;
+        rig.player.set_visualizer_active(true);
+        until("events", || count(&events) > 3).await;
+        assert!(rig.player.inner.viz.has_tap());
+        rig.player.set_show_visualizer(false);
+        assert_quiet(&events).await;
     }
 }

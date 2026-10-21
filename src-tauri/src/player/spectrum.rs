@@ -2,7 +2,7 @@
 //! `TapSink` that feeds it from `PcmSink::push` without altering the audio.
 
 use std::f32::consts::PI;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use rustfft::num_complex::Complex32;
@@ -126,6 +126,8 @@ pub struct TapSink<S> {
     inner: S,
     spectrum: Spectrum,
     shared: Bands,
+    /// When set and false, pushes are forwarded without any analysis.
+    enabled: Option<Arc<AtomicBool>>,
 }
 
 impl<S: PcmSink> TapSink<S> {
@@ -134,6 +136,15 @@ impl<S: PcmSink> TapSink<S> {
             inner,
             spectrum: Spectrum::new(),
             shared: Arc::new(Mutex::new([0.0; BANDS])),
+            enabled: None,
+        }
+    }
+
+    /// Like `new`, but analyzes only while `enabled` is true.
+    pub fn gated(inner: S, enabled: Arc<AtomicBool>) -> Self {
+        Self {
+            enabled: Some(enabled),
+            ..Self::new(inner)
         }
     }
 
@@ -146,6 +157,13 @@ impl<S: PcmSink> TapSink<S> {
 impl<S: PcmSink> PcmSink for TapSink<S> {
     fn push(&mut self, samples: &[f32], channels: u16, sample_rate: u32, cancel: &AtomicBool) {
         self.inner.push(samples, channels, sample_rate, cancel);
+        if self
+            .enabled
+            .as_ref()
+            .is_some_and(|e| !e.load(Ordering::Relaxed))
+        {
+            return;
+        }
         self.spectrum.push(samples, channels, sample_rate);
         if let Ok(mut b) = self.shared.lock() {
             *b = *self.spectrum.bands();
@@ -236,5 +254,21 @@ mod tests {
         let peak = data.iter().fold(0f32, |a, b| a.max(b.abs()));
         assert_eq!(counts.peak.lock().unwrap().to_bits(), peak.to_bits());
         assert_eq!(argmax(&bands.lock().unwrap()), band_of(1000.0, 48_000));
+    }
+
+    #[test]
+    fn gated_off_forwards_without_analysis() {
+        let counts = Counts::default();
+        let enabled = Arc::new(AtomicBool::new(false));
+        let mut tap = TapSink::gated(NullSink(counts.clone()), enabled.clone());
+        let bands = tap.bands();
+        let data = sine(1000.0, 48_000, 2, FRAME * 2);
+        let cancel = AtomicBool::new(false);
+        tap.push(&data, 2, 48_000, &cancel);
+        assert_eq!(*counts.samples.lock().unwrap(), data.len());
+        assert_eq!(*bands.lock().unwrap(), [0.0; BANDS]);
+        enabled.store(true, Ordering::Relaxed);
+        tap.push(&data, 2, 48_000, &cancel);
+        assert!(bands.lock().unwrap().iter().any(|&v| v > 0.5));
     }
 }

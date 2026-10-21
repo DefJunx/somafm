@@ -8,6 +8,7 @@ pub mod reducer;
 pub mod shell;
 pub mod source;
 pub mod spectrum;
+pub mod visualizer;
 
 use serde::Serialize;
 

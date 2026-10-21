@@ -12,6 +12,7 @@ use crate::settings::{SettingsService, SettingsView};
 
 pub const STATIONS_UPDATED: &str = "stations-updated";
 pub const PLAYER_STATE: &str = "player-state";
+pub use crate::player::visualizer::SPECTRUM_EVENT;
 
 #[tauri::command]
 pub fn get_stations(feed: State<'_, Arc<Feed>>) -> StationsSnapshot {
@@ -104,8 +105,19 @@ pub fn set_fade_audio(
 }
 
 #[tauri::command]
-pub fn set_show_visualizer(settings: State<'_, SettingsService>, value: bool) {
+pub fn set_show_visualizer(
+    player: State<'_, Player>,
+    settings: State<'_, SettingsService>,
+    value: bool,
+) {
+    player.set_show_visualizer(value);
     settings.set_show_visualizer(value);
+}
+
+/// The Player screen is (not) showing the Visualizer; `spectrum` events flow only while it is.
+#[tauri::command]
+pub fn set_visualizer_active(player: State<'_, Player>, active: bool) {
+    player.set_visualizer_active(active);
 }
 
 /// Called once at startup with the OS reduced-motion preference; only a

@@ -44,6 +44,7 @@ pub fn run() {
             commands::set_favourites_only,
             commands::set_fade_audio,
             commands::set_show_visualizer,
+            commands::set_visualizer_active,
             commands::apply_reduced_motion_default,
             commands::get_station_history,
             commands::list_liked,
@@ -74,6 +75,10 @@ pub fn run() {
                     let _ = emitter.emit(commands::PLAYER_STATE, state);
                 },
             );
+            let spectrum_emitter = app.handle().clone();
+            player.set_spectrum_emit(move |bands| {
+                let _ = spectrum_emitter.emit(commands::SPECTRUM_EVENT, bands);
+            });
             app.manage(player.clone());
 
             // Settings: absolute path in the app-config dir (the store plugin would
@@ -95,6 +100,7 @@ pub fn run() {
                 .filter(|id| !feed.snapshot().loaded || feed.station(id).is_some());
             player.restore(last, s.volume);
             player.set_fade_audio(s.fade_audio);
+            player.set_show_visualizer(s.show_visualizer);
             let emitter = app.handle().clone();
             let settings_service = SettingsService::new(
                 s,
@@ -133,6 +139,15 @@ pub fn run() {
                 .get_webview_window("main")
                 .is_none_or(|w| window_visible(&w.as_ref().window()));
             let (visible_tx, visible_rx) = watch::channel(initial_visible);
+            // The Visualizer follows the same signal.
+            player.set_window_visible(initial_visible);
+            let mut viz_rx = visible_rx.clone();
+            let viz_player = player.clone();
+            tauri::async_runtime::spawn(async move {
+                while viz_rx.changed().await.is_ok() {
+                    viz_player.set_window_visible(*viz_rx.borrow_and_update());
+                }
+            });
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(feed::run_refresh_loop(
                 feed,

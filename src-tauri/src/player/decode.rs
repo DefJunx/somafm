@@ -349,6 +349,15 @@ impl RodioSink {
     }
 }
 
+impl PcmSink for Box<dyn PcmSink> {
+    fn push(&mut self, samples: &[f32], channels: u16, sample_rate: u32, cancel: &AtomicBool) {
+        (**self).push(samples, channels, sample_rate, cancel);
+    }
+    fn set_volume(&mut self, volume: f32) {
+        (**self).set_volume(volume);
+    }
+}
+
 impl PcmSink for RodioSink {
     fn push(&mut self, samples: &[f32], channels: u16, sample_rate: u32, cancel: &AtomicBool) {
         // Roughly one decoded packet (~25 ms) per queued source: cap the backlog.
