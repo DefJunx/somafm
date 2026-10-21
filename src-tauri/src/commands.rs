@@ -125,6 +125,12 @@ pub fn remove_liked(liked: State<'_, LikedService>, station_id: String, raw: Str
     liked.remove(&station_id, &raw);
 }
 
+/// Undo of `remove_liked`: puts the track back with its original `likedAt`.
+#[tauri::command]
+pub fn restore_liked(liked: State<'_, LikedService>, track: LikedTrack) {
+    liked.restore(track);
+}
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

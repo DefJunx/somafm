@@ -45,7 +45,8 @@ pub fn run() {
             commands::get_station_history,
             commands::list_liked,
             commands::toggle_like,
-            commands::remove_liked
+            commands::remove_liked,
+            commands::restore_liked
         ])
         .setup(|app| {
             let cache_dir = app.path().app_cache_dir()?;

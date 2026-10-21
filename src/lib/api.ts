@@ -53,6 +53,7 @@ export const toggleLike = (stationId: string, raw: string) =>
   invoke<boolean>("toggle_like", { stationId, raw }); // resolves to liked-after
 export const removeLiked = (stationId: string, raw: string) =>
   invoke<void>("remove_liked", { stationId, raw });
+export const restoreLiked = (track: LikedTrack) => invoke<void>("restore_liked", { track }); // undo of a removal
 export const onLikedChanged = (cb: (t: LikedTrack[]) => void): Promise<UnlistenFn> =>
   listen<LikedTrack[]>("liked-changed", (e) => cb(e.payload));
 

@@ -1,4 +1,4 @@
-import { listLiked, onLikedChanged, removeLiked, toggleLike, type LikedTrack } from "./api";
+import { listLiked, onLikedChanged, removeLiked, restoreLiked, toggleLike, type LikedTrack } from "./api";
 
 /** Pure view of Rust's Liked tracks (newest first): replaced wholesale on every `liked-changed` event. */
 export function createLikedStore() {
@@ -24,6 +24,8 @@ export function createLikedStore() {
     },
     toggle: (stationId: string, raw: string) => toggleLike(stationId, raw),
     remove: (stationId: string, raw: string) => removeLiked(stationId, raw),
+    /** Puts a removed track back with its original `likedAt`. */
+    restore: (track: LikedTrack) => restoreLiked(track),
   };
 }
 

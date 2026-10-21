@@ -40,3 +40,10 @@ it("toggle and remove invoke the backend commands", async () => {
   expect(calls).toContainEqual(["toggle_like", { stationId: "a", raw: "x - y" }]);
   expect(calls).toContainEqual(["remove_liked", { stationId: "a", raw: "x - y" }]);
 });
+
+it("restore sends the whole track, keeping its likedAt", async () => {
+  const calls: [string, unknown][] = [];
+  mockIPC((cmd, args) => { calls.push([cmd, args]); }, { shouldMockEvents: true });
+  await createLikedStore().restore(t("a", "x - y", 42));
+  expect(calls).toContainEqual(["restore_liked", { track: { stationId: "a", raw: "x - y", likedAt: 42 } }]);
+});

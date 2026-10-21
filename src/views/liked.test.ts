@@ -16,7 +16,9 @@ afterEach(() => { cleanup(); clearMocks(); vi.unstubAllGlobals(); });
 const feed = { loaded: true, stations: [station("a"), station("b")] };
 type Call = [string, unknown];
 const L = (stationId: string, raw: string, likedAt: number): LikedTrack => ({ stationId, raw, likedAt });
-const tracks = [L("b", "Y - Two - Mix", Date.UTC(2026, 9, 21, 12)), L("gone", "Solo", Date.UTC(2026, 9, 20, 12)), L("a", "X - One", Date.UTC(2026, 9, 19, 12))];
+const local = (d: number, h = 12, m = 0) => new Date(2026, 9, d, h, m).getTime();
+const NOW = local(21, 18);
+const tracks = [L("b", "Y - Two - Mix", local(21, 9, 5)), L("gone", "Solo", local(20)), L("a", "X - One", local(19))];
 
 function ipc(liked: LikedTrack[], calls: Call[] = []) {
   mockIPC((cmd, args) => {
@@ -30,58 +32,68 @@ function ipc(liked: LikedTrack[], calls: Call[] = []) {
   }, { shouldMockEvents: true });
 }
 function renderLiked(onback?: () => void) {
-  render(Liked, { onback, player: createPlayerStore(), stations: createStationsStore(), liked: createLikedStore() });
+  render(Liked, { onback, now: () => NOW, player: createPlayerStore(), stations: createStationsStore(), liked: createLikedStore() });
 }
 const rows = () => screen.getAllByRole("listitem");
+const ready = async (n = 3) => { await waitFor(() => expect(rows()).toHaveLength(n)); };
 
-it("lists Liked tracks in the given (newest first) order with station name and date", async () => {
+it("lists Liked tracks newest first, split into title and artist lines, grouped by day", async () => {
   ipc(tracks);
   renderLiked();
-  await waitFor(() => expect(rows()).toHaveLength(3));
+  await ready();
   const [r0, r1, r2] = rows();
-  expect(r0.textContent).toContain("Y – Two - Mix");
-  expect(within(r0).getByRole("button", { name: "Station b" })).toBeTruthy();
-  expect(r0.querySelector("time")?.getAttribute("datetime")).toBe("2026-10-21T12:00:00.000Z");
-  expect(r1.textContent).toContain("Solo"); // no split: raw string
-  expect(r2.textContent).toContain("X – One");
+  expect(within(r0).getByText("Two - Mix")).toBeTruthy();
+  expect(within(r0).getByText("Y")).toBeTruthy();
+  expect(r0.querySelector("time")?.getAttribute("datetime")).toBe(new Date(local(21, 9, 5)).toISOString());
+  expect(r1.textContent).toContain("Solo");
+  expect(r1.querySelector(".artist")).toBeNull(); // blank artist: title line only
+  expect(within(r2).getByText("One")).toBeTruthy();
+  expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Today", "Yesterday", "This week"]);
 });
 
-it("a Station missing from the feed shows its id and is not clickable", async () => {
+it("a Station missing from the feed shows its id and offers no play button", async () => {
   ipc(tracks);
   renderLiked();
-  await waitFor(() => expect(rows()).toHaveLength(3));
-  expect(within(rows()[1]).queryByRole("button", { name: "gone" })).toBeNull();
+  await ready();
+  expect(within(rows()[1]).queryByRole("button", { name: /^Play/ })).toBeNull();
   expect(rows()[1].textContent).toContain("gone");
 });
 
-it("clicking the Station name plays that Station", async () => {
+it("the thumbnail and the Station name both play that Station and stay on Liked", async () => {
   const calls: Call[] = [];
   ipc(tracks, calls);
   renderLiked();
-  await waitFor(() => expect(rows()).toHaveLength(3));
-  await fireEvent.click(within(rows()[2]).getByRole("button", { name: "Station a" }));
-  expect(calls).toContainEqual(["play", { stationId: "a" }]);
+  await ready();
+  const plays = within(rows()[2]).getAllByRole("button", { name: "Play Station a" });
+  expect(plays).toHaveLength(2);
+  await fireEvent.click(plays[0]);
+  await fireEvent.click(plays[1]);
+  expect(calls.filter(([c]) => c === "play")).toEqual([["play", { stationId: "a" }], ["play", { stationId: "a" }]]);
+  expect(screen.getByRole("heading", { name: "Liked" })).toBeTruthy();
 });
 
-it("copy writes the raw string to the clipboard", async () => {
+it("copy writes the raw string and confirms with Copied, announced politely", async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
   ipc(tracks);
   renderLiked();
-  await waitFor(() => expect(rows()).toHaveLength(3));
-  await fireEvent.click(within(rows()[0]).getByRole("button", { name: "Copy text" }));
+  await ready();
+  await fireEvent.click(within(rows()[0]).getByRole("button", { name: "Copy Y – Two - Mix" }));
   expect(writeText).toHaveBeenCalledWith("Y - Two - Mix");
+  await waitFor(() => expect(within(rows()[0]).getByRole("button", { name: "Copied Y – Two - Mix" })).toBeTruthy());
+  expect(document.querySelector('[aria-live="polite"]:not([role])')?.textContent).toBe("Copied");
 });
 
 it("Search on opens each service in the system browser", async () => {
   const calls: Call[] = [];
   ipc(tracks, calls);
   renderLiked();
-  await waitFor(() => expect(rows()).toHaveLength(3));
+  await ready();
   const row = rows()[2];
-  await fireEvent.click(within(row).getByRole("button", { name: "Bandcamp" }));
-  await fireEvent.click(within(row).getByRole("button", { name: "Discogs" }));
-  await fireEvent.click(within(row).getByRole("button", { name: "MusicBrainz" }));
+  const group = within(row).getByRole("group", { name: "Search on" });
+  await fireEvent.click(within(group).getByRole("button", { name: "Bandcamp" }));
+  await fireEvent.click(within(group).getByRole("button", { name: "Discogs" }));
+  await fireEvent.click(within(group).getByRole("button", { name: "MusicBrainz" }));
   const urls = calls.filter(([c]) => c === "plugin:opener|open_url").map(([, a]) => (a as { url: string }).url);
   expect(urls).toEqual([
     "https://bandcamp.com/search?q=X%20One",
@@ -90,25 +102,69 @@ it("Search on opens each service in the system browser", async () => {
   ]);
 });
 
-it("remove asks the backend and the row goes when liked-changed arrives", async () => {
+it("remove hides the row at once, asks the backend, and offers Undo that restores the exact track", async () => {
   const calls: Call[] = [];
   ipc(tracks, calls);
   renderLiked();
-  await waitFor(() => expect(rows()).toHaveLength(3));
-  await fireEvent.click(within(rows()[2]).getByRole("button", { name: "Remove" }));
+  await ready();
+  await fireEvent.click(within(rows()[2]).getByRole("button", { name: "Remove X – One" }));
   expect(calls).toContainEqual(["remove_liked", { stationId: "a", raw: "X - One" }]);
-  await emit("liked-changed", tracks.slice(0, 2));
   await waitFor(() => expect(rows()).toHaveLength(2));
+  const toast = screen.getByRole("status");
+  expect(toast.textContent).toContain("Removed One");
+  await fireEvent.click(within(toast).getByRole("button", { name: "Undo" }));
+  expect(calls).toContainEqual(["restore_liked", { track: tracks[2] }]);
+  await waitFor(() => expect(rows()).toHaveLength(3));
+  expect(screen.queryByText(/^Removed/)).toBeNull();
 });
 
-it("shows an empty state and Back", async () => {
+it("the Undo toast goes away after a few seconds and a new removal replaces it", async () => {
+  ipc(tracks);
+  renderLiked();
+  await ready();
+  await fireEvent.click(within(rows()[2]).getByRole("button", { name: "Remove X – One" }));
+  await screen.findByText("Removed One");
+  await fireEvent.click(within(rows()[1]).getByRole("button", { name: "Remove Solo" }));
+  await screen.findByText("Removed Solo");
+  expect(screen.queryByText("Removed One")).toBeNull();
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    await fireEvent.click(within(rows()[0]).getByRole("button", { name: "Remove Y – Two - Mix" }));
+    await screen.findByText("Removed Two - Mix");
+    await vi.advanceTimersByTimeAsync(5100);
+    expect(screen.queryByText(/^Removed/)).toBeNull();
+  } finally { vi.useRealTimers(); }
+});
+
+it("filters as you type on track and Station name, hides empty groups, and clears with Escape", async () => {
+  ipc(tracks);
+  renderLiked();
+  await ready();
+  const input = screen.getByRole("searchbox", { name: "Filter liked tracks" });
+  await fireEvent.input(input, { target: { value: "STATION B" } });
+  await waitFor(() => expect(rows()).toHaveLength(1));
+  expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Today"]);
+  await fireEvent.input(input, { target: { value: "zzz" } });
+  await screen.findByText("No liked tracks match “zzz”");
+  await fireEvent.click(screen.getByRole("button", { name: "Clear filter" }));
+  await ready();
+  await fireEvent.input(input, { target: { value: "one" } });
+  await waitFor(() => expect(rows()).toHaveLength(1));
+  await fireEvent.keyDown(input, { key: "Escape" });
+  await ready();
+  expect((input as HTMLInputElement).value).toBe("");
+});
+
+it("shows an empty state with Browse stations, and Back", async () => {
   const onback = vi.fn();
   ipc([]);
   renderLiked(onback);
   await screen.findByText("No liked tracks yet");
+  expect(screen.getByText("Tap the heart next to a playing track to save it here.")).toBeTruthy();
   expect(screen.queryByRole("listitem")).toBeNull();
+  await fireEvent.click(screen.getByRole("button", { name: "Browse stations" }));
   await fireEvent.click(screen.getByRole("button", { name: "Back" }));
-  expect(onback).toHaveBeenCalled();
+  expect(onback).toHaveBeenCalledTimes(2);
 });
 
 it("Grid header button opens the Liked view via App, Back returns to the Grid", async () => {

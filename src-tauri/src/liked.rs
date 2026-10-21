@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::settings::{Migration, Unparsable, migrate};
@@ -19,7 +19,7 @@ pub const SCHEMA_VERSION: i64 = 1;
 pub const MIGRATIONS: &[Migration] = &[];
 
 /// Artist/title are not stored: they are split from `raw` for display only.
-#[derive(Serialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LikedTrack {
     pub raw: String,
@@ -220,6 +220,21 @@ impl LikedService {
             return;
         };
         f.tracks.remove(i);
+        self.changed(&f);
+    }
+
+    /// Undo of a removal: re-inserts the track with its original `liked_at`, keeping
+    /// the file ordered by it. No-op if the pair is present or `raw` is blank.
+    pub fn restore(&self, track: LikedTrack) {
+        if track.raw.trim().is_empty() {
+            return;
+        }
+        let mut f = self.state.lock().unwrap();
+        if position(&f, &track.station_id, &track.raw).is_some() {
+            return;
+        }
+        let at = f.tracks.partition_point(|t| t.liked_at <= track.liked_at);
+        f.tracks.insert(at, track);
         self.changed(&f);
     }
 
@@ -454,6 +469,36 @@ mod tests {
         assert!(!tog(&svc, "x", "   ", 1));
         assert!(svc.list().is_empty());
         assert!(rec.0.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn restore_reinserts_at_original_position_and_is_idempotent() {
+        let (svc, rec, events) = service(LikedFile::default());
+        tog(&svc, "x", "one", 1);
+        tog(&svc, "x", "two", 2);
+        tog(&svc, "x", "three", 3);
+        svc.remove("x", "two");
+        let saves = rec.0.lock().unwrap().len();
+        svc.restore(t("x", "two", 2));
+        let raws: Vec<_> = svc.list().into_iter().map(|l| l.raw).collect();
+        assert_eq!(raws, ["three", "two", "one"]);
+        assert_eq!(svc.list()[1].liked_at, 2);
+        assert_eq!(rec.0.lock().unwrap().len(), saves + 1);
+        assert_eq!(events.lock().unwrap().len(), saves + 1);
+        svc.restore(t("x", "two", 2));
+        assert_eq!(rec.0.lock().unwrap().len(), saves + 1, "present: no-op");
+    }
+
+    #[test]
+    fn restore_ignores_blank_raw_and_orders_oldest_and_newest() {
+        let (svc, rec, _) = service(LikedFile::default());
+        svc.restore(t("x", "  ", 1));
+        assert!(rec.0.lock().unwrap().is_empty());
+        svc.restore(t("x", "mid", 5));
+        svc.restore(t("x", "old", 1));
+        svc.restore(t("x", "new", 9));
+        let raws: Vec<_> = svc.list().into_iter().map(|l| l.raw).collect();
+        assert_eq!(raws, ["new", "mid", "old"]);
     }
 
     #[test]

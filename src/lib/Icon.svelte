@@ -45,6 +45,19 @@
     <polygon points="3 9 3 15 7 15 12 20 12 4 7 9" />
     <line x1="23" y1="1" x2="1" y2="23" stroke="currentColor" stroke-width="2" />
   </svg>
+{:else if name === "copy"}
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15V6a2 2 0 0 1 2-2h8" />
+  </svg>
+{:else if name === "check"}
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  </svg>
+{:else if name === "close"}
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <path d="M6 6l12 12M18 6L6 18" />
+  </svg>
 {:else if name === "warning"}
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
     <path d="M12 2L2 20h20Z" />
