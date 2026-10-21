@@ -13,8 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Station history on the Player screen, listing recently played tracks for the current Station.
 - Like tracks with a heart on the current track, on history rows and in the now-playing bar.
-- Liked view listing liked tracks newest first.
+- Liked view listing liked tracks newest first, grouped by date (Today, Yesterday, This week, then by month).
 - From the Liked view you can play the Station, copy a track, search it on Bandcamp, Discogs or MusicBrainz, or remove it.
+- Removing a liked track can be undone, putting it back in its original place.
+- Filter liked tracks by track or Station name.
 
 ## [0.1.1] - 2026-10-20
 
