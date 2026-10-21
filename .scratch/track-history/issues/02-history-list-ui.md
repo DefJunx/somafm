@@ -1,6 +1,6 @@
 # 02 Station history list on the Player screen
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 ## Goal

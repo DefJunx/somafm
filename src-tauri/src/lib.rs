@@ -1,5 +1,7 @@
 pub mod commands;
 pub mod feed;
+pub mod history;
+pub mod liked;
 pub mod media_controls;
 pub mod player;
 pub mod settings;
@@ -11,6 +13,8 @@ use tauri::{Emitter, Manager, WindowEvent};
 use tokio::sync::watch;
 
 use feed::{Feed, Schedule};
+use history::HistoryClient;
+use liked::LikedService;
 use player::{
     Player, SinkFactory,
     decode::{PcmSink, RodioSink},
@@ -25,6 +29,7 @@ fn window_visible(w: &tauri::Window) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
@@ -36,7 +41,11 @@ pub fn run() {
             commands::set_volume,
             commands::get_settings,
             commands::toggle_favourite,
-            commands::set_favourites_only
+            commands::set_favourites_only,
+            commands::get_station_history,
+            commands::list_liked,
+            commands::toggle_like,
+            commands::remove_liked
         ])
         .setup(|app| {
             let cache_dir = app.path().app_cache_dir()?;
@@ -84,6 +93,22 @@ pub fn run() {
                     let _ = emitter.emit(settings::SETTINGS_CHANGED, view);
                 },
             ));
+
+            app.manage(HistoryClient::new(history::SONGS_BASE_URL));
+
+            // Liked tracks: their own file in the app-data dir, loaded and recovered
+            // independently of settings.json.
+            let path = app.path().app_data_dir()?.join(liked::FILE);
+            let loaded = liked::load_file(&path, liked::MIGRATIONS);
+            let store = StoreBuilder::new(app.handle(), path).build()?;
+            let persist = liked::StorePersist(store);
+            if loaded.needs_save {
+                liked::Persist::save(&persist, &loaded.file);
+            }
+            let emitter = app.handle().clone();
+            app.manage(LikedService::new(loaded.file, persist, move |tracks| {
+                let _ = emitter.emit(liked::LIKED_CHANGED, tracks);
+            }));
 
             // Refresh loop runs only while the main window is visible and not minimised.
             // `tray::set_main_visible` and the close handler send false/true on the

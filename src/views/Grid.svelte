@@ -4,16 +4,19 @@
   import { favouritesIn, filterByGenre, genresOf } from "../lib/genres";
   import { playerStore, statusLabel } from "../lib/player.svelte";
   import { settingsStore } from "../lib/settings.svelte";
+  import { likedStore } from "../lib/liked.svelte";
   import { stationsStore } from "../lib/stations.svelte";
   import NowPlayingBar from "./NowPlayingBar.svelte";
   import Icon from "../lib/Icon.svelte";
   import StatusBadge from "../lib/StatusBadge.svelte";
 
-  let { onopenplayer, store = stationsStore, player = playerStore, settings = settingsStore }: {
+  let { onopenplayer, onopenliked, store = stationsStore, player = playerStore, settings = settingsStore, liked = likedStore }: {
     onopenplayer?: () => void;
+    onopenliked?: () => void;
     store?: typeof stationsStore;
     player?: typeof playerStore;
     settings?: typeof settingsStore;
+    liked?: typeof likedStore;
   } = $props();
 
   let genre: string | null = $state(null);
@@ -27,6 +30,7 @@
     store.init().catch(() => {}); // a later mount retries
     player.init().catch(() => {});
     settings.init().catch(() => {});
+    liked.init().catch(() => {});
   });
 
   const visible = $derived.by(() => {
@@ -46,6 +50,12 @@
 </script>
 
 <main aria-busy={!store.ready}>
+  <header>
+    <button class="liked" onclick={() => onopenliked?.()}>
+      <Icon name="heart" />
+      <span>Liked</span>
+    </button>
+  </header>
   {#if !store.ready}
     <!-- waiting for the first snapshot: Skeleton tiles, never the empty state -->
     <ul class="grid" aria-hidden="true">
@@ -91,10 +101,13 @@
     </ul>
   {/if}
 </main>
-<NowPlayingBar {onopenplayer} {player} stations={store} />
+<NowPlayingBar {onopenplayer} {player} stations={store} {liked} />
 
 <style>
   main { padding: var(--size-4); padding-block-end: var(--size-10); }
+  header { display: flex; justify-content: flex-end; margin-block-end: var(--size-3); }
+  .liked { display: flex; align-items: center; gap: var(--size-2); background: var(--surface-control-strong); color: var(--text-primary); }
+  .liked:not(:disabled):hover { background-color: var(--color-accent); }
   .empty { display: grid; justify-items: center; gap: var(--size-3); margin-block: var(--size-10); }
   .empty button {
     padding: var(--size-2) var(--size-4);

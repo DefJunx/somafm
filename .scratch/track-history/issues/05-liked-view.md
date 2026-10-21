@@ -1,6 +1,6 @@
 # 05 Liked view
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 03
 
 ## Goal
@@ -22,3 +22,6 @@ A Liked view, reachable from the Grid header, lists Liked tracks with actions.
 1. Like a few tracks, open Liked: newest first, correct Station names.
 2. Click a Station name: it starts playing.
 3. Use copy, each Search link, and remove.
+
+## Comments
+Frontend done (Liked view, helpers, tests; Search links call `openUrl` in `src/lib/api.ts` -> `plugin:opener|open_url`). Left open: the app has no opener plugin, so Search on does nothing in the real app until Rust adds `tauri-plugin-opener` (Cargo.toml, `.plugin(tauri_plugin_opener::init())` in lib.rs, `opener:allow-open-url` in `src-tauri/capabilities/default.json`, plus `@tauri-apps/plugin-opener` is NOT needed since api.ts invokes the command directly). Resolved: plugin added with `opener:allow-open-url` scoped to the three search URLs. Manual smoke run not done.

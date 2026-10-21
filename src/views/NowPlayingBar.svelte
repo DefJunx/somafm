@@ -1,13 +1,16 @@
 <script lang="ts">
   import { nowPlayingText, playerStore, primaryAction, runPrimaryAction, statusLabel, statusText } from "../lib/player.svelte";
   import { stationsStore } from "../lib/stations.svelte";
+  import { likedStore } from "../lib/liked.svelte";
   import Icon from "../lib/Icon.svelte";
+  import HeartButton from "../lib/HeartButton.svelte";
   import StatusBadge from "../lib/StatusBadge.svelte";
 
-  let { onopenplayer, player = playerStore, stations = stationsStore }: {
+  let { onopenplayer, player = playerStore, stations = stationsStore, liked = likedStore }: {
     onopenplayer?: () => void;
     player?: typeof playerStore;
     stations?: typeof stationsStore;
+    liked?: typeof likedStore;
   } = $props();
 
   const state = $derived(player.state);
@@ -25,6 +28,9 @@
       <strong {title}>{title}</strong>
       <span class="line" title={line}>{line}</span>
     </button>
+    {#if state.nowPlaying}
+      <HeartButton store={liked} stationId={state.stationId} raw={state.nowPlaying.raw} />
+    {/if}
     <StatusBadge {kind} label={statusLabel(state)} text={statusText(state) || statusLabel(state)} />
     <button class:primary={action.label === "Play"} onclick={() => runPrimaryAction(player)} aria-label={action.label}>
       <Icon name={action.label === "Stop" ? "stop" : action.label === "Play" ? "play" : "warning"} />

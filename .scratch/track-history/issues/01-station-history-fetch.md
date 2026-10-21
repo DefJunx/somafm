@@ -1,6 +1,6 @@
 # 01 Station history fetch: songs endpoint client and command
 
-Status: ready-for-agent
+Status: resolved
 Blocked by:
 
 ## Goal

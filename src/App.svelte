@@ -2,21 +2,24 @@
   import { tick } from "svelte";
   import Grid from "./views/Grid.svelte";
   import Player from "./views/Player.svelte";
+  import Liked from "./views/Liked.svelte";
 
-  let view: "grid" | "player" = $state("grid");
+  let view: "grid" | "player" | "liked" = $state("grid");
   // Grid stays mounted (hidden) while the Player is open, so its filters survive; scroll and focus are restored by hand.
   let scrollY = 0;
   let opener: HTMLElement | null = null;
 
-  async function openPlayer() {
+  async function open(next: "player" | "liked") {
     scrollY = window.scrollY;
     opener = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
-    view = "player";
+    view = next;
     await tick();
-    document.querySelector<HTMLElement>("#player-view h1")?.focus({ preventScroll: true });
+    document.querySelector<HTMLElement>(`#${next}-view h1`)?.focus({ preventScroll: true });
   }
+  const openPlayer = () => open("player");
+  const openLiked = () => open("liked");
 
-  async function closePlayer() {
+  async function closeToGrid() {
     view = "grid";
     await tick();
     window.scrollTo(0, scrollY);
@@ -26,11 +29,16 @@
 </script>
 
 <div id="grid-view" class="view" hidden={view !== "grid"}>
-  <Grid onopenplayer={openPlayer} />
+  <Grid onopenplayer={openPlayer} onopenliked={openLiked} />
 </div>
 {#if view === "player"}
   <div id="player-view" class="view">
-    <Player onback={closePlayer} />
+    <Player onback={closeToGrid} />
+  </div>
+{/if}
+{#if view === "liked"}
+  <div id="liked-view" class="view">
+    <Liked onback={closeToGrid} onopenplayer={openPlayer} />
   </div>
 {/if}
 

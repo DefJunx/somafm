@@ -26,6 +26,8 @@ function ipc(opts: { snap?: StationsSnapshot; player?: PlayerState; settings?: S
   mockIPC(
     (cmd, args) => {
       if (cmd === "get_settings") return opts.settings ?? { favourites: [], favouritesOnly: false };
+      if (cmd === "list_liked") return [];
+      if (cmd === "get_station_history") return [];
       if (cmd === "get_player_state") return opts.player ?? ps();
       if (cmd === "get_stations" || cmd === "refresh_stations") return opts.snap ?? feed;
       opts.calls?.push([cmd, args]);

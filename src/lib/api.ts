@@ -42,3 +42,19 @@ export const toggleFavourite = (stationId: string) => invoke<void>("toggle_favou
 export const setFavouritesOnly = (value: boolean) => invoke<void>("set_favourites_only", { value });
 export const onSettingsChanged = (cb: (s: SettingsView) => void): Promise<UnlistenFn> =>
   listen<SettingsView>("settings-changed", (e) => cb(e.payload));
+
+export interface HistoryEntry { time: number; artist: string; title: string; raw: string } // time: Unix seconds; raw: like key (= ICY raw)
+export const getStationHistory = (stationId: string) =>
+  invoke<HistoryEntry[]>("get_station_history", { stationId });
+
+export interface LikedTrack { raw: string; stationId: string; likedAt: number } // likedAt: Unix ms
+export const listLiked = () => invoke<LikedTrack[]>("list_liked"); // newest first
+export const toggleLike = (stationId: string, raw: string) =>
+  invoke<boolean>("toggle_like", { stationId, raw }); // resolves to liked-after
+export const removeLiked = (stationId: string, raw: string) =>
+  invoke<void>("remove_liked", { stationId, raw });
+export const onLikedChanged = (cb: (t: LikedTrack[]) => void): Promise<UnlistenFn> =>
+  listen<LikedTrack[]>("liked-changed", (e) => cb(e.payload));
+
+// Needs tauri-plugin-opener registered in Rust plus the `opener:allow-open-url` capability.
+export const openUrl = (url: string) => invoke<void>("plugin:opener|open_url", { url });

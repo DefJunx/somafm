@@ -1,6 +1,6 @@
 # 04 Hearts: current track, history rows, NowPlayingBar
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 02, 03
 
 ## Goal

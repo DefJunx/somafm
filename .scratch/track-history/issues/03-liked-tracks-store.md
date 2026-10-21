@@ -1,6 +1,6 @@
 # 03 Liked tracks store and commands (Rust)
 
-Status: ready-for-agent
+Status: resolved
 Blocked by:
 
 ## Goal

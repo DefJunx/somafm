@@ -5,6 +5,8 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::feed::{Feed, StationsSnapshot};
+use crate::history::{HistoryClient, HistoryEntry};
+use crate::liked::{LikedService, LikedTrack};
 use crate::player::{Player, PlayerState};
 use crate::settings::{SettingsService, SettingsView};
 
@@ -89,4 +91,42 @@ pub fn toggle_favourite(
 #[tauri::command]
 pub fn set_favourites_only(settings: State<'_, SettingsService>, value: bool) {
     settings.set_favourites_only(value);
+}
+
+/// Fetches the Station's recent tracks once. Any failure is an `Err` string the
+/// frontend shows as "History unavailable"; nothing is retried or cached.
+#[tauri::command]
+pub async fn get_station_history(
+    history: State<'_, HistoryClient>,
+    station_id: String,
+) -> Result<Vec<HistoryEntry>, String> {
+    history.fetch(&station_id).await
+}
+
+#[tauri::command]
+pub fn list_liked(liked: State<'_, LikedService>) -> Vec<LikedTrack> {
+    liked.list()
+}
+
+/// Returns whether the track is liked afterwards; Err for an unknown station id
+/// (unliking is always allowed).
+#[tauri::command]
+pub fn toggle_like(
+    liked: State<'_, LikedService>,
+    feed: State<'_, Arc<Feed>>,
+    station_id: String,
+    raw: String,
+) -> Result<bool, String> {
+    liked.toggle(&station_id, &raw, now_ms(), |id| feed.station(id).is_some())
+}
+
+#[tauri::command]
+pub fn remove_liked(liked: State<'_, LikedService>, station_id: String, raw: String) {
+    liked.remove(&station_id, &raw);
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
 }

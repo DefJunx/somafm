@@ -2,15 +2,21 @@
   import { onMount } from "svelte";
   import { nowPlayingText, playerStore, primaryAction, runPrimaryAction, statusLabel, statusText } from "../lib/player.svelte";
   import { settingsStore } from "../lib/settings.svelte";
+  import { historyStore } from "../lib/history.svelte";
+  import { likedStore } from "../lib/liked.svelte";
+  import { trackText } from "../lib/tracks";
   import { stationsStore } from "../lib/stations.svelte";
   import Icon from "../lib/Icon.svelte";
+  import HeartButton from "../lib/HeartButton.svelte";
   import StatusBadge from "../lib/StatusBadge.svelte";
 
-  let { onback, player = playerStore, stations = stationsStore, settings = settingsStore }: {
+  let { onback, player = playerStore, stations = stationsStore, settings = settingsStore, history = historyStore, liked = likedStore }: {
     onback?: () => void;
     player?: typeof playerStore;
     stations?: typeof stationsStore;
     settings?: typeof settingsStore;
+    history?: typeof historyStore;
+    liked?: typeof likedStore;
   } = $props();
 
   let lastVolume = 0.8;
@@ -23,10 +29,34 @@
   const action = $derived(primaryAction(s));
 
   onMount(() => {
+    const onVisibility = () => (visible = !document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
     player.init().catch(() => {});
     stations.init().catch(() => {});
     settings.init().catch(() => {});
+    liked.init().catch(() => {});
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   });
+
+  // The Player screen is only mounted while visible: fetch on open, then when a new track starts. A track change
+  // while the window is hidden is fetched once on return, never on a timer.
+  const nowRaw = $derived(s.nowPlaying?.raw ?? null);
+  const activeId = $derived(s.stationId);
+  let loadedKey = "";
+  let visible = $state(!document.hidden);
+  const fetchHistory = (id: string, raw: string | null) => {
+    loadedKey = `${id}\n${raw ?? ""}`;
+    history.load(id);
+  };
+  $effect(() => {
+    const id = activeId;
+    const raw = nowRaw;
+    if (!id || !visible) return;
+    // A null Now playing (stop, reconnect) is not a new track: keep what we have unless the Station changed.
+    if (raw === null && loadedKey.startsWith(`${id}\n`)) return;
+    if (`${id}\n${raw ?? ""}` !== loadedKey) fetchHistory(id, raw);
+  });
+  const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 
   const favourite = $derived(s.stationId !== null && settings.favourites.includes(s.stationId));
 
@@ -59,7 +89,12 @@
         <p class="desc">{station.description}</p>
         <p class="listeners">{station.listeners} listeners</p>
       {/if}
-      <p class="now" title={nowPlayingText(s, title)}>{nowPlayingText(s, title)}</p>
+      <div class="nowrow">
+        <p class="now" title={nowPlayingText(s, title)}>{nowPlayingText(s, title)}</p>
+        {#if s.stationId && s.nowPlaying}
+          <HeartButton store={liked} stationId={s.stationId} raw={s.nowPlaying.raw} />
+        {/if}
+      </div>
       <p class="status" role="status"><StatusBadge kind={s.status.kind} label={statusLabel(s)} text={statusText(s) || statusLabel(s)} /></p>
       <button class="main" class:primary={action.label === "Play"} onclick={() => runPrimaryAction(player)} disabled={action.busy} aria-busy={action.busy}>
         {#if action.busy}
@@ -88,6 +123,23 @@
       </div>
     </section>
   </div>
+  {#if s.stationId}
+    <section class="history" aria-label="Station history">
+      {#if history.failed}
+        <p class="unavailable">History unavailable</p>
+      {:else if history.entries.length > 0}
+        <ul aria-label="Station history">
+          {#each history.entries as e, i (i)}
+            <li>
+              <time class="when" datetime={new Date(e.time * 1000).toISOString()}>{timeFormat.format(e.time * 1000)}</time>
+              <span class="track" title={trackText(e.artist, e.title)}>{trackText(e.artist, e.title)}</span>
+              <HeartButton store={liked} stationId={s.stationId} raw={e.raw} />
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
+  {/if}
 </main>
 
 <style>
@@ -112,6 +164,14 @@
     overflow: hidden; overflow-wrap: anywhere;
   }
   .desc { color: var(--text-primary); }
+  .nowrow { display: flex; align-items: center; gap: var(--size-2); min-width: 0; }
+  .nowrow .now { flex: 1; min-width: 0; }
+  .history { margin-block-start: var(--size-6); }
+  .history ul { list-style: none; margin: 0; padding: 0; max-height: 20rem; overflow-y: auto; font-family: var(--font-data); }
+  .history li { display: flex; align-items: center; gap: var(--size-3); padding-inline: var(--size-2); border-block-end: 1px solid var(--surface-control); }
+  .when { color: var(--text-muted); flex-shrink: 0; }
+  .track { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-primary); }
+  .unavailable { font-family: var(--font-data); color: var(--text-muted); margin: 0; }
   .now { font-family: var(--font-data); color: var(--text-primary); margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .listeners { font-family: var(--font-data); color: var(--text-muted); }
   .status { margin: 0; min-width: 0; }
