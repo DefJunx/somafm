@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-21
+
+### Added
+
+- Station history on the Player screen, listing recently played tracks for the current Station.
+- Like tracks with a heart on the current track, on history rows and in the now-playing bar.
+- Liked view listing liked tracks newest first.
+- From the Liked view you can play the Station, copy a track, search it on Bandcamp, Discogs or MusicBrainz, or remove it.
+
 ## [0.1.1] - 2026-10-20
 
 ### Added
@@ -42,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tray menu refresh no longer deadlocks the main thread.
 - Now-playing bar no longer scrolls away after a view transition.
 
-[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/DefJunx/somafm/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/DefJunx/somafm/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/DefJunx/somafm/releases/tag/v0.1.0
