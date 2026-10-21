@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use tokio::runtime::Handle;
 use tokio::task::JoinHandle;
 
-use super::decode::{DecodeEnd, PcmSink, decode_stream, f32_to_bits};
+use super::decode::{DecodeEnd, Fade, PcmSink, decode_stream, f32_to_bits};
 use super::icy::IcyReader;
 use super::pls::{pick_playlist, resolve_mirrors};
 use super::reducer::{Core, Effect, Event, reduce};
@@ -69,6 +69,9 @@ struct Inner {
     sink_factory: SinkFactory,
     timeouts: Timeouts,
     volume: Arc<AtomicU32>,
+    /// "Fade audio" setting; each decode thread reads it once, when it starts.
+    fade_audio: AtomicBool,
+    fade: Mutex<Fade>,
     /// Mirrors resolved for connection attempt `attempt`.
     mirrors: Mutex<ResolvedMirrors>,
     active: Mutex<Active>,
@@ -113,6 +116,8 @@ impl Player {
                 emit: Box::new(emit),
                 sink_factory,
                 timeouts,
+                fade_audio: AtomicBool::new(false),
+                fade: Mutex::new(Fade::DEFAULT),
                 mirrors: Mutex::new(ResolvedMirrors::default()),
                 active: Mutex::new(Active::default()),
             }),
@@ -153,6 +158,16 @@ impl Player {
     pub fn set_volume(&self, volume: f32) {
         self.inner.dispatch(Event::SetVolume(volume));
     }
+
+    /// Applies to decode threads started afterwards; off by default.
+    pub fn set_fade_audio(&self, on: bool) {
+        self.inner.fade_audio.store(on, Ordering::Relaxed);
+    }
+
+    /// Replaces the fade durations (tests use short ones).
+    pub fn set_fade(&self, fade: Fade) {
+        *self.inner.fade.lock().unwrap() = fade;
+    }
 }
 
 impl Inner {
@@ -166,6 +181,12 @@ impl Inner {
         for effect in effects {
             self.execute(effect, &guard.state);
         }
+    }
+
+    fn current_fade(&self) -> Option<Fade> {
+        self.fade_audio
+            .load(Ordering::Relaxed)
+            .then(|| *self.fade.lock().unwrap())
     }
 
     fn execute(self: &Arc<Self>, effect: Effect, state: &PlayerState) {
@@ -224,10 +245,11 @@ impl Inner {
                 let factory = self.sink_factory.clone();
                 let timeouts = self.timeouts;
                 std::thread::spawn(move || {
+                    let fade = this.current_fade();
                     let notify = move |e: Event| this.dispatch(e);
                     match url {
                         Some(url) => stream_thread(
-                            &url, attempt, &cancel, &volume, timeouts, factory, notify,
+                            &url, attempt, &cancel, &volume, fade, timeouts, factory, notify,
                         ),
                         None => notify(Event::ConnectFailed {
                             attempt,
@@ -369,12 +391,15 @@ impl std::io::Read for ChannelReader {
 
 /// One Mirror attempt: connect, decode, play until cancelled or the stream ends.
 /// Cancel takes effect within ~`POLL` even while the server is silent, and
-/// dropping the sink on return stops the audio.
+/// dropping the sink on return stops the audio. With `fade`, a cancel first
+/// fades the audio out (see `decode_stream`).
+#[allow(clippy::too_many_arguments)]
 fn stream_thread(
     url: &str,
     attempt: u64,
     cancel: &Arc<AtomicBool>,
     volume: &AtomicU32,
+    fade: Option<Fade>,
     timeouts: Timeouts,
     factory: SinkFactory,
     notify: impl Fn(Event) + Send + Sync + 'static,
@@ -414,6 +439,7 @@ fn stream_thread(
         move || factory(),
         volume,
         cancel,
+        fade,
         {
             let notify = notify.clone();
             move || {
@@ -578,13 +604,22 @@ mod tests {
     }
 
     async fn rig_with(stub: &Stub, timeouts: Timeouts) -> Rig {
-        let dir = tempfile::tempdir().unwrap();
-        let feed = Arc::new(Feed::new(stub.url("/channels.json"), dir.path()));
-        assert!(feed.refresh().await.unwrap());
         let counts = Counts::default();
         let c = counts.clone();
         let factory: SinkFactory =
             Arc::new(move || Ok(Box::new(NullSink(c.clone())) as Box<dyn PcmSink>));
+        rig_full(stub, timeouts, factory, counts).await
+    }
+
+    async fn rig_full(
+        stub: &Stub,
+        timeouts: Timeouts,
+        factory: SinkFactory,
+        counts: Counts,
+    ) -> Rig {
+        let dir = tempfile::tempdir().unwrap();
+        let feed = Arc::new(Feed::new(stub.url("/channels.json"), dir.path()));
+        assert!(feed.refresh().await.unwrap());
         let snaps = Arc::new(Mutex::new(Vec::new()));
         let s2 = snaps.clone();
         let player = Player::with_timeouts(
@@ -885,6 +920,7 @@ mod tests {
                     1,
                     &c,
                     &AtomicU32::new(0),
+                    None,
                     Timeouts::default(),
                     factory,
                     |_| {},
@@ -921,6 +957,7 @@ mod tests {
             1,
             &cancel,
             &AtomicU32::new(0),
+            None,
             Timeouts::default(),
             factory,
             move |e| eprintln!("event: {e:?} samples={}", k2.samples.lock().unwrap()),
@@ -963,6 +1000,7 @@ mod tests {
             1,
             &Arc::new(AtomicBool::new(false)),
             &AtomicU32::new(0),
+            None,
             Timeouts::default(),
             factory,
             move |e| e2.lock().unwrap().push(e),

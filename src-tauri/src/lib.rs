@@ -57,8 +57,14 @@ pub fn run() {
             app.manage(feed.clone());
 
             let emitter = app.handle().clone();
-            let sink: SinkFactory =
-                Arc::new(|| RodioSink::open().map(|s| Box::new(s) as Box<dyn PcmSink>));
+            let fade_probe = app.handle().clone();
+            let sink: SinkFactory = Arc::new(move || {
+                // Fades need a short sink queue (see `decode::BACKLOG_FADE`).
+                let fade = fade_probe
+                    .try_state::<SettingsService>()
+                    .is_none_or(|s| s.view().fade_audio);
+                RodioSink::open(fade).map(|s| Box::new(s) as Box<dyn PcmSink>)
+            });
             let player = Player::new(
                 feed.clone(),
                 &cache_dir,
@@ -88,6 +94,7 @@ pub fn run() {
                 .clone()
                 .filter(|id| !feed.snapshot().loaded || feed.station(id).is_some());
             player.restore(last, s.volume);
+            player.set_fade_audio(s.fade_audio);
             let emitter = app.handle().clone();
             let settings_service = SettingsService::new(
                 s,

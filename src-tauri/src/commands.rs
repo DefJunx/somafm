@@ -94,7 +94,12 @@ pub fn set_favourites_only(settings: State<'_, SettingsService>, value: bool) {
 }
 
 #[tauri::command]
-pub fn set_fade_audio(settings: State<'_, SettingsService>, value: bool) {
+pub fn set_fade_audio(
+    player: State<'_, Player>,
+    settings: State<'_, SettingsService>,
+    value: bool,
+) {
+    player.set_fade_audio(value);
     settings.set_fade_audio(value);
 }
 
