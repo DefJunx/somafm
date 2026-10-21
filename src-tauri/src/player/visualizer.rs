@@ -93,8 +93,8 @@ impl Visualizer {
     }
 
     #[cfg(test)]
-    pub fn has_tap(&self) -> bool {
-        self.bands.lock().unwrap().is_some()
+    pub fn latest_bands(&self) -> Option<Bands> {
+        self.bands.lock().unwrap().clone()
     }
 
     fn refresh(self: &Arc<Self>) {
@@ -104,7 +104,13 @@ impl Visualizer {
             self.show.load(Ordering::Relaxed),
             self.window_visible.load(Ordering::Relaxed),
         );
-        self.enabled.store(on, Ordering::Relaxed);
+        let was = self.enabled.swap(on, Ordering::Relaxed);
+        if was && !on {
+            // Re-enabling must never emit what was left from before.
+            if let Some(b) = self.bands.lock().unwrap().as_ref() {
+                *b.lock().unwrap() = [0.0; BANDS];
+            }
+        }
         if on && !self.ticking.swap(true, Ordering::AcqRel) {
             let this = self.clone();
             self.rt.spawn(async move { this.run().await });
@@ -153,5 +159,29 @@ mod tests {
                 "{bits:04b}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn bands_are_zeroed_when_the_gate_turns_off_and_stay_zero_on_re_enable() {
+        use crate::player::decode::tests::{Counts, NullSink};
+        use std::sync::atomic::AtomicBool;
+        let viz = Visualizer::new(Handle::current());
+        viz.set_active(true);
+        viz.set_playing(true);
+        let mut tap = viz.tap(NullSink(Counts::default()));
+        let bands = tap.bands();
+        let cancel = AtomicBool::new(false);
+        let tone: Vec<f32> = (0..4096)
+            .map(|i| 0.8 * (2.0 * std::f32::consts::PI * 1000.0 * i as f32 / 48_000.0).sin())
+            .collect();
+        tap.push(&tone, 1, 48_000, &cancel);
+        assert!(bands.lock().unwrap().iter().any(|&v| v > 0.5));
+        viz.set_active(false);
+        assert_eq!(*bands.lock().unwrap(), [0.0; BANDS]);
+        tap.push(&tone, 1, 48_000, &cancel); // gated off: no analysis
+        assert_eq!(*bands.lock().unwrap(), [0.0; BANDS]);
+        viz.set_active(true);
+        tap.push(&vec![0.0; 2048], 1, 48_000, &cancel);
+        assert_eq!(*bands.lock().unwrap(), [0.0; BANDS], "no stale decay");
     }
 }

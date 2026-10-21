@@ -73,6 +73,12 @@ impl Spectrum {
         }
     }
 
+    /// Drops the partial frame and the smoothed levels.
+    pub fn reset(&mut self) {
+        self.frame.clear();
+        self.bands = [0.0; BANDS];
+    }
+
     /// Smoothed band magnitudes in 0..1, lowest frequency first.
     pub fn bands(&self) -> &[f32; BANDS] {
         &self.bands
@@ -162,6 +168,7 @@ impl<S: PcmSink> PcmSink for TapSink<S> {
             .as_ref()
             .is_some_and(|e| !e.load(Ordering::Relaxed))
         {
+            self.spectrum.reset(); // re-enabling starts from silence, not stale levels
             return;
         }
         self.spectrum.push(samples, channels, sample_rate);

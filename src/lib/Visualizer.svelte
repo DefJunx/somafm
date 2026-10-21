@@ -11,6 +11,7 @@
   let canvas: HTMLCanvasElement | undefined = $state();
   let width = $state(0); // CSS px
   let last: number[] = [];
+  let color = "";
 
   function draw(bands: number[]) {
     last = bands;
@@ -19,7 +20,7 @@
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, HEIGHT);
-    ctx.fillStyle = getComputedStyle(canvas).getPropertyValue("--color-accent").trim();
+    ctx.fillStyle = color;
     const bar = (width - GAP * (BANDS - 1)) / BANDS;
     for (let i = 0; i < BANDS; i++) {
       const h = Math.max(MIN_BAR, Math.min(1, bands[i] ?? 0) * HEIGHT);
@@ -35,6 +36,7 @@
     const el = canvas;
     const measure = () => {
       width = el.clientWidth;
+      color = getComputedStyle(el).getPropertyValue("--color-accent").trim(); // once per resize, not per draw
       const dpr = window.devicePixelRatio || 1;
       el.width = Math.round(width * dpr);
       el.height = Math.round(HEIGHT * dpr);
@@ -61,8 +63,8 @@
   });
 </script>
 
-<canvas bind:this={canvas} aria-hidden="true"></canvas>
+<canvas bind:this={canvas} style:height="{HEIGHT}px" aria-hidden="true"></canvas>
 
 <style>
-  canvas { display: block; width: 100%; height: 48px; }
+  canvas { display: block; width: 100%; }
 </style>

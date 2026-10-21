@@ -2,7 +2,7 @@ import { applyReducedMotionDefault, getSettings, onSettingsChanged, setFadeAudio
 
 const prefersReducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** Pure view of Rust's settings: replaced wholesale on every `settings-changed` event. */
+/** View of Rust's settings, replaced wholesale on every `settings-changed` event. `init` also reports the OS reduced-motion preference once (Rust applies it only to a fresh or migrated file). */
 export function createSettingsStore() {
   let favourites: string[] = $state([]);
   let favouritesOnly = $state(false);
