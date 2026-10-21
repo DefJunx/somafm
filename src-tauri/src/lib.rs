@@ -42,6 +42,9 @@ pub fn run() {
             commands::get_settings,
             commands::toggle_favourite,
             commands::set_favourites_only,
+            commands::set_fade_audio,
+            commands::set_show_visualizer,
+            commands::apply_reduced_motion_default,
             commands::get_station_history,
             commands::list_liked,
             commands::toggle_like,
@@ -77,6 +80,7 @@ pub fn run() {
                 settings::Persist::save(&persist, &loaded.settings);
             }
             let s = loaded.settings;
+            let first_run = loaded.first_run;
             // A last Station that left the feed is treated as null (not rewritten).
             // Without a feed yet (fresh install) the id cannot be checked, so keep it.
             let last = s
@@ -85,7 +89,7 @@ pub fn run() {
                 .filter(|id| !feed.snapshot().loaded || feed.station(id).is_some());
             player.restore(last, s.volume);
             let emitter = app.handle().clone();
-            app.manage(SettingsService::new(
+            let settings_service = SettingsService::new(
                 s,
                 persist,
                 tauri::async_runtime::handle().inner().clone(),
@@ -93,7 +97,11 @@ pub fn run() {
                 move |view| {
                     let _ = emitter.emit(settings::SETTINGS_CHANGED, view);
                 },
-            ));
+            );
+            if first_run {
+                settings_service.arm_first_run();
+            }
+            app.manage(settings_service);
 
             app.manage(HistoryClient::new(history::SONGS_BASE_URL));
 

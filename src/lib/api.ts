@@ -36,10 +36,14 @@ export const setVolume = (volume: number) => invoke<void>("set_volume", { volume
 export const onPlayerState = (cb: (s: PlayerState) => void): Promise<UnlistenFn> =>
   listen<PlayerState>("player-state", (e) => cb(e.payload));
 
-export interface SettingsView { favourites: string[]; favouritesOnly: boolean }
+export interface SettingsView { favourites: string[]; favouritesOnly: boolean; fadeAudio: boolean; showVisualizer: boolean }
 export const getSettings = () => invoke<SettingsView>("get_settings");
 export const toggleFavourite = (stationId: string) => invoke<void>("toggle_favourite", { stationId });
 export const setFavouritesOnly = (value: boolean) => invoke<void>("set_favourites_only", { value });
+export const setFadeAudio = (value: boolean) => invoke<void>("set_fade_audio", { value });
+export const setShowVisualizer = (value: boolean) => invoke<void>("set_show_visualizer", { value });
+/** Reports the OS reduced-motion preference; Rust applies it only when settings.json was just created or migrated. */
+export const applyReducedMotionDefault = (reduced: boolean) => invoke<void>("apply_reduced_motion_default", { reduced });
 export const onSettingsChanged = (cb: (s: SettingsView) => void): Promise<UnlistenFn> =>
   listen<SettingsView>("settings-changed", (e) => cb(e.payload));
 

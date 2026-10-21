@@ -1,9 +1,9 @@
-//! Settings: v1 schema, ordered migrations and lenient loading (spec §8).
+//! Settings: v2 schema, ordered migrations and lenient loading (spec §8).
 //! This module is the only writer of `settings.json` (via `tauri-plugin-store`);
 //! window geometry lives in its own file, outside this schema.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -13,7 +13,7 @@ use tokio::runtime::Handle;
 
 pub const FILE: &str = "settings.json";
 pub const SETTINGS_CHANGED: &str = "settings-changed";
-pub const SCHEMA_VERSION: i64 = 1;
+pub const SCHEMA_VERSION: i64 = 2;
 pub const DEFAULT_VOLUME: f32 = 0.8;
 pub const VOLUME_DEBOUNCE: Duration = Duration::from_millis(500);
 
@@ -24,6 +24,8 @@ pub struct Settings {
     pub volume: f32,
     pub last_station_id: Option<String>,
     pub favourites_only: bool,
+    pub fade_audio: bool,
+    pub show_visualizer: bool,
 }
 
 impl Default for Settings {
@@ -34,6 +36,8 @@ impl Default for Settings {
             volume: DEFAULT_VOLUME,
             last_station_id: None,
             favourites_only: false,
+            fade_audio: true,
+            show_visualizer: true,
         }
     }
 }
@@ -44,13 +48,21 @@ impl Default for Settings {
 pub struct SettingsView {
     pub favourites: Vec<String>,
     pub favourites_only: bool,
+    pub fade_audio: bool,
+    pub show_visualizer: bool,
 }
 
 /// One `vN -> vN+1` step, operating on the raw key map.
 pub type Migration = fn(&mut Map<String, Value>);
 
-/// Index `i` migrates v(i+1) to v(i+2). Empty while v1 is current.
-pub const MIGRATIONS: &[Migration] = &[];
+/// v1 -> v2: the audio-effect toggles.
+fn v1_to_v2(map: &mut Map<String, Value>) {
+    map.entry("fadeAudio").or_insert(Value::Bool(true));
+    map.entry("showVisualizer").or_insert(Value::Bool(true));
+}
+
+/// Index `i` migrates v(i+1) to v(i+2).
+pub const MIGRATIONS: &[Migration] = &[v1_to_v2];
 
 /// Runs the migrations from the map's version up to `1 + migrations.len()`.
 /// A newer version is left alone. Returns whether anything was migrated.
@@ -113,6 +125,14 @@ pub fn parse(contents: &str, migrations: &[Migration]) -> Result<(Settings, bool
             .get("favouritesOnly")
             .and_then(Value::as_bool)
             .unwrap_or(d.favourites_only),
+        fade_audio: map
+            .get("fadeAudio")
+            .and_then(Value::as_bool)
+            .unwrap_or(d.fade_audio),
+        show_visualizer: map
+            .get("showVisualizer")
+            .and_then(Value::as_bool)
+            .unwrap_or(d.show_visualizer),
     };
     Ok((settings, migrated))
 }
@@ -121,6 +141,9 @@ pub struct Loaded {
     pub settings: Settings,
     /// The file should be rewritten (migrated, or replaced by defaults).
     pub needs_save: bool,
+    /// The file was created, migrated or replaced by this load, so first-run
+    /// defaults (e.g. reduced motion) may still apply.
+    pub first_run: bool,
 }
 
 /// Reads `path`. No file: defaults. Unparsable file: renamed to `<name>.bak`, defaults.
@@ -129,12 +152,14 @@ pub fn load_file(path: &Path, migrations: &[Migration]) -> Loaded {
         return Loaded {
             settings: Settings::default(),
             needs_save: false,
+            first_run: true,
         };
     };
     match parse(&contents, migrations) {
         Ok((settings, migrated)) => Loaded {
             settings,
             needs_save: migrated,
+            first_run: migrated,
         },
         Err(Unparsable) => {
             let mut bak = path.as_os_str().to_owned();
@@ -151,6 +176,7 @@ pub fn load_file(path: &Path, migrations: &[Migration]) -> Loaded {
             Loaded {
                 settings: Settings::default(),
                 needs_save: true,
+                first_run: true,
             }
         }
     }
@@ -175,6 +201,8 @@ impl<R: tauri::Runtime> Persist for StorePersist<R> {
             s.last_station_id.clone().map_or(Value::Null, Value::String),
         );
         self.0.set("favouritesOnly", s.favourites_only);
+        self.0.set("fadeAudio", s.fade_audio);
+        self.0.set("showVisualizer", s.show_visualizer);
         if let Err(e) = self.0.save() {
             eprintln!("settings: save failed: {e}");
         }
@@ -190,6 +218,8 @@ struct Inner {
     /// Bumped by each volume change; a pending write only runs if still current.
     volume_gen: AtomicU64,
     volume_dirty: Mutex<bool>,
+    /// Set while the first-run reduced-motion default may still be applied.
+    first_run: AtomicBool,
 }
 
 /// Shared handle to the in-memory settings; every change is persisted.
@@ -215,6 +245,7 @@ impl SettingsService {
                 debounce,
                 volume_gen: AtomicU64::new(0),
                 volume_dirty: Mutex::new(false),
+                first_run: AtomicBool::new(false),
             }),
         }
     }
@@ -254,6 +285,41 @@ impl SettingsService {
         };
         self.inner.persist.save(&snap);
         (self.inner.on_change)(view);
+    }
+
+    pub fn set_fade_audio(&self, value: bool) {
+        self.set_flag(value, |s| &mut s.fade_audio);
+    }
+
+    pub fn set_show_visualizer(&self, value: bool) {
+        self.set_flag(value, |s| &mut s.show_visualizer);
+    }
+
+    fn set_flag(&self, value: bool, field: fn(&mut Settings) -> &mut bool) {
+        let (view, snap) = {
+            let mut s = self.inner.state.lock().unwrap();
+            if *field(&mut s) == value {
+                return;
+            }
+            *field(&mut s) = value;
+            (view_of(&s), s.clone())
+        };
+        self.inner.persist.save(&snap);
+        (self.inner.on_change)(view);
+    }
+
+    /// Marks the loaded file as new (created, migrated or replaced).
+    pub fn arm_first_run(&self) {
+        self.inner.first_run.store(true, Ordering::SeqCst);
+    }
+
+    /// The frontend reports the OS reduced-motion preference once at startup.
+    /// It only matters on a first run, where it turns the Visualizer off; the
+    /// chance is used up by the first call, so a saved value is never overridden.
+    pub fn apply_reduced_motion_default(&self, reduced: bool) {
+        if self.inner.first_run.swap(false, Ordering::SeqCst) && reduced {
+            self.set_show_visualizer(false);
+        }
     }
 
     /// Written immediately when a `play` for a known Station is accepted.
@@ -302,6 +368,8 @@ fn view_of(s: &Settings) -> SettingsView {
     SettingsView {
         favourites: s.favourites.clone(),
         favourites_only: s.favourites_only,
+        fade_audio: s.fade_audio,
+        show_visualizer: s.show_visualizer,
     }
 }
 
@@ -519,8 +587,102 @@ mod tests {
         let v = serde_json::to_value(SettingsView {
             favourites: vec!["a".into()],
             favourites_only: true,
+            fade_audio: false,
+            show_visualizer: true,
         })
         .unwrap();
-        assert_eq!(v, json!({"favourites":["a"],"favouritesOnly":true}));
+        assert_eq!(
+            v,
+            json!({"favourites":["a"],"favouritesOnly":true,"fadeAudio":false,"showVisualizer":true})
+        );
+    }
+
+    #[test]
+    fn v1_file_migrates_to_v2_with_effect_defaults_and_keeps_other_keys() {
+        let (s, migrated) = parse(
+            r#"{"schemaVersion":1,"favourites":["a"],"volume":0.25,"lastStationId":"a","favouritesOnly":true}"#,
+            MIGRATIONS,
+        )
+        .unwrap();
+        assert!(migrated);
+        assert_eq!(s.schema_version, 2);
+        assert!(s.fade_audio);
+        assert!(s.show_visualizer);
+        assert_eq!(s.favourites, ["a"]);
+        assert_eq!(s.volume, 0.25);
+        assert_eq!(s.last_station_id.as_deref(), Some("a"));
+        assert!(s.favourites_only);
+    }
+
+    #[test]
+    fn v2_file_keeps_its_saved_effect_values() {
+        let s = p(r#"{"schemaVersion":2,"fadeAudio":false,"showVisualizer":false}"#);
+        assert!(!s.fade_audio);
+        assert!(!s.show_visualizer);
+        let s = p(r#"{"schemaVersion":2,"fadeAudio":"no","showVisualizer":1}"#);
+        assert_eq!(s, Settings::default());
+    }
+
+    #[test]
+    fn load_reports_a_first_run_for_missing_migrated_and_corrupt_files_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(FILE);
+        assert!(load_file(&path, MIGRATIONS).first_run);
+        std::fs::write(&path, r#"{"schemaVersion":1}"#).unwrap();
+        assert!(load_file(&path, MIGRATIONS).first_run);
+        std::fs::write(&path, r#"{"schemaVersion":2}"#).unwrap();
+        assert!(!load_file(&path, MIGRATIONS).first_run);
+        std::fs::write(&path, "{nope").unwrap();
+        assert!(load_file(&path, MIGRATIONS).first_run);
+    }
+
+    #[tokio::test]
+    async fn set_fade_audio_persists_and_emits() {
+        let (svc, rec, events) = service(Settings::default());
+        svc.set_fade_audio(false);
+        assert!(!svc.view().fade_audio);
+        assert!(!rec.0.lock().unwrap().last().unwrap().fade_audio);
+        assert!(!events.lock().unwrap()[0].fade_audio);
+        svc.set_fade_audio(false);
+        assert_eq!(rec.0.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn set_show_visualizer_persists_and_emits() {
+        let (svc, rec, events) = service(Settings::default());
+        svc.set_show_visualizer(false);
+        assert!(!svc.view().show_visualizer);
+        assert!(!rec.0.lock().unwrap().last().unwrap().show_visualizer);
+        assert!(!events.lock().unwrap()[0].show_visualizer);
+        svc.set_show_visualizer(false);
+        assert_eq!(rec.0.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn reduced_motion_turns_the_visualizer_off_on_first_run_only() {
+        let (svc, rec, events) = service(Settings::default());
+        svc.arm_first_run();
+        svc.apply_reduced_motion_default(true);
+        assert!(!svc.view().show_visualizer);
+        assert!(!rec.0.lock().unwrap().last().unwrap().show_visualizer);
+        assert_eq!(events.lock().unwrap().len(), 1);
+        // Applied once: a later call never overrides what the user chose.
+        svc.set_show_visualizer(true);
+        svc.apply_reduced_motion_default(true);
+        assert!(svc.view().show_visualizer);
+    }
+
+    #[tokio::test]
+    async fn reduced_motion_never_overrides_a_saved_value() {
+        // Not a first run: a saved file is left alone.
+        let (svc, rec, _) = service(Settings::default());
+        svc.apply_reduced_motion_default(true);
+        assert!(svc.view().show_visualizer);
+        assert!(rec.0.lock().unwrap().is_empty());
+        // First run without the preference changes nothing, but uses up the chance.
+        svc.arm_first_run();
+        svc.apply_reduced_motion_default(false);
+        svc.apply_reduced_motion_default(true);
+        assert!(svc.view().show_visualizer);
     }
 }

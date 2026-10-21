@@ -346,7 +346,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let sp = dir.path().join(settings::FILE);
         let lp = dir.path().join(FILE);
-        std::fs::write(&sp, r#"{"schemaVersion":1,"favourites":["a"]}"#).unwrap();
+        std::fs::write(&sp, r#"{"schemaVersion":2,"favourites":["a"]}"#).unwrap();
         std::fs::write(&lp, "{not json").unwrap();
         let l = load_file(&lp, MIGRATIONS);
         let s = settings::load_file(&sp, settings::MIGRATIONS);

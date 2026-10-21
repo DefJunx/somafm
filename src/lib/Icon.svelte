@@ -58,6 +58,11 @@
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
     <path d="M6 6l12 12M18 6L6 18" />
   </svg>
+{:else if name === "settings"}
+  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
+  </svg>
 {:else if name === "warning"}
   <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
     <path d="M12 2L2 20h20Z" />

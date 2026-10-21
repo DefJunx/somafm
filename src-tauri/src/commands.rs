@@ -93,6 +93,23 @@ pub fn set_favourites_only(settings: State<'_, SettingsService>, value: bool) {
     settings.set_favourites_only(value);
 }
 
+#[tauri::command]
+pub fn set_fade_audio(settings: State<'_, SettingsService>, value: bool) {
+    settings.set_fade_audio(value);
+}
+
+#[tauri::command]
+pub fn set_show_visualizer(settings: State<'_, SettingsService>, value: bool) {
+    settings.set_show_visualizer(value);
+}
+
+/// Called once at startup with the OS reduced-motion preference; only a
+/// first-run settings file is affected.
+#[tauri::command]
+pub fn apply_reduced_motion_default(settings: State<'_, SettingsService>, reduced: bool) {
+    settings.apply_reduced_motion_default(reduced);
+}
+
 /// Fetches the Station's recent tracks once. Any failure is an `Err` string the
 /// frontend shows as "History unavailable"; nothing is retried or cached.
 #[tauri::command]

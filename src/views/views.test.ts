@@ -22,10 +22,10 @@ const ps = (over: Partial<PlayerState> = {}): PlayerState => ({ ...initialPlayer
 type Call = [string, unknown];
 
 /** Routes IPC by command: player state / stations / records player commands. */
-function ipc(opts: { snap?: StationsSnapshot; player?: PlayerState; settings?: SettingsView; calls?: Call[] } = {}) {
+function ipc(opts: { snap?: StationsSnapshot; player?: PlayerState; settings?: Partial<SettingsView>; calls?: Call[] } = {}) {
   mockIPC(
     (cmd, args) => {
-      if (cmd === "get_settings") return opts.settings ?? { favourites: [], favouritesOnly: false };
+      if (cmd === "get_settings") return { favourites: [], favouritesOnly: false, fadeAudio: true, showVisualizer: true, ...opts.settings };
       if (cmd === "list_liked") return [];
       if (cmd === "get_station_history") return [];
       if (cmd === "get_player_state") return opts.player ?? ps();
