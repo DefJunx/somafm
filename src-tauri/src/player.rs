@@ -7,6 +7,7 @@ pub mod pls;
 pub mod reducer;
 pub mod shell;
 pub mod source;
+pub mod spectrum;
 
 use serde::Serialize;
 
