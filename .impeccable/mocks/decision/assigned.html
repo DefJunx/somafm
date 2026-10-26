@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Sleeve Back - Player</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#15110f;--raised:#231d19;--line:#3a312b;--dim:#9c9086;--ink:#efe6d8;--spot:#ff5b26;--cool:#8fa7ff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1024px;height:680px;overflow:hidden;background:var(--ground);color:var(--ink);font:400 14px/24px Archivo,sans-serif;font-stretch:100%;font-variant-numeric:tabular-nums;display:flex;flex-direction:column}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.top{height:48px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.top .r{display:flex;gap:8px}
+.btn{height:32px;padding:0 12px;border-radius:6px;color:var(--dim)}
+.btn:hover{color:var(--ink)}
+.btn.focus{color:var(--ink);outline:2px solid var(--cool);outline-offset:2px}
+.icon{width:32px;padding:0}
+main{flex:1;display:flex;gap:40px;padding:16px 24px 0}
+.left{width:336px}
+.art{width:336px;height:336px;position:relative;background:var(--raised);overflow:hidden;border-radius:4px}
+.art i{position:absolute;display:block}
+.viz{height:24px;margin-top:8px;display:flex;align-items:flex-end;gap:3px}
+.viz b{flex:1;background:var(--cool);opacity:.35;height:var(--h);border-radius:1px 1px 0 0}
+h1{font-stretch:62%;font-weight:800;font-size:52px;line-height:56px;letter-spacing:-.005em;margin-top:8px}
+.genre{color:var(--dim);height:24px}
+.transport{display:flex;align-items:center;gap:16px;margin-top:16px}
+.play{width:48px;height:48px;border-radius:50%;background:var(--spot);color:var(--ground)}
+.play svg{fill:currentColor;stroke:none;width:18px;height:18px}
+.vol{flex:1;display:flex;align-items:center;gap:8px;color:var(--dim)}
+.slider{flex:1;height:4px;border-radius:2px;background:var(--line);position:relative}
+.slider::before{content:"";position:absolute;left:0;top:0;bottom:0;width:68%;border-radius:2px;background:var(--ink)}
+.slider::after{content:"";position:absolute;left:68%;top:-6px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:var(--ink)}
+.fav{color:var(--ink)}.fav svg{fill:var(--ink)}
+.right{flex:1;min-width:0}
+h2{font-stretch:62%;font-weight:700;font-size:28px;line-height:32px;display:flex;justify-content:space-between;align-items:baseline;padding-bottom:8px;border-bottom:1px solid var(--ink)}
+h2 span{font:400 13px/24px Archivo,sans-serif;font-stretch:100%;color:var(--dim)}
+ol{list-style:none}
+li{height:36px;display:grid;grid-template-columns:40px 1fr 48px 32px;align-items:center;border-bottom:1px solid var(--line)}
+li .n{color:var(--dim);font-weight:500}
+li .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+li .t em{font-style:normal;color:var(--dim)}
+li .t b{font-weight:500}
+li .tm{text-align:right;color:var(--dim)}
+li button{width:32px;height:32px;color:var(--dim);margin-right:-8px}
+li button svg{width:18px;height:18px}
+li button.on{color:var(--ink)}li button.on svg{fill:var(--ink)}
+li.live{height:44px}
+li.live .n,li.live .t b,li.live .t em,li.live .tm,li.live button{color:var(--spot)}
+li.live .tm{font-weight:600}
+li.live button svg{fill:var(--spot)}
+.credits{margin-top:16px;display:grid;grid-template-columns:96px 1fr;gap:0 24px;font-size:13px;line-height:20px}
+.credits h3{font-stretch:62%;font-weight:700;font-size:18px;line-height:24px;grid-row:1/4}
+.credits p{max-width:44ch;color:var(--dim)}
+.credits p+p{margin-top:4px}
+.credits b{color:var(--ink);font-weight:500}
+.bar{height:56px;background:var(--raised);border-top:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 24px}
+.thumb{width:40px;height:40px;background:var(--line);position:relative;overflow:hidden;border-radius:2px}
+.thumb i{position:absolute;display:block}
+.bar .who{width:280px;line-height:20px}
+.bar .who b{display:block;font-weight:600}
+.bar .who span{color:var(--dim);font-size:13px}
+.bar .trk{flex:1;color:var(--ink);white-space:nowrap}.bar .trk em{font-style:normal;color:var(--dim)}
+.badge{display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 12px;border-radius:12px;border:1px solid var(--line);font-size:13px}
+.badge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--spot)}
+.stop{width:32px;height:32px;border-radius:50%;border:1px solid var(--line)}
+.stop svg{width:12px;height:12px;fill:var(--ink);stroke:none}
+</style></head><body>
+<header class="top">
+ <button class="btn"><svg viewBox="0 0 20 20"><path d="M16 10H4m5-5-5 5 5 5"/></svg>Stations</button>
+ <div class="r">
+  <button class="btn focus"><svg viewBox="0 0 20 20" style="width:18px;height:18px"><path d="M10 16.5S3 12.4 3 7.6A3.6 3.6 0 0 1 10 6a3.6 3.6 0 0 1 7 1.6c0 4.800-7 8.900-7 8.900Z"/></svg>Liked</button>
+  <button class="btn icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.500"/><path d="M10 2.500v2m0 11v2m7.500-7.500h-2m-11 0h-2m12.300-5.300-1.400 1.400M6.100 13.900l-1.400 1.400m0-10.600 1.400 1.400m7.800 7.800 1.400 1.400"/></svg></button>
+ </div>
+</header>
+<main>
+ <section class="left">
+  <div class="art"><i style="inset:0;background:#3a312b"></i><i style="left:0;top:0;width:200px;height:200px;background:#9c9086"></i><i style="left:128px;top:96px;width:208px;height:240px;background:#231d19"></i><i style="left:40px;top:160px;width:176px;height:176px;border-radius:50%;background:#efe6d8"></i><i style="left:96px;top:216px;width:64px;height:64px;border-radius:50%;background:#15110f"></i><i style="right:0;top:0;width:48px;height:96px;background:#8fa7ff;opacity:.0"></i></div>
+  <div class="viz" aria-hidden="true">
+   <b style="--h:30%"></b><b style="--h:55%"></b><b style="--h:40%"></b><b style="--h:80%"></b><b style="--h:65%"></b><b style="--h:35%"></b><b style="--h:90%"></b><b style="--h:50%"></b><b style="--h:70%"></b><b style="--h:45%"></b><b style="--h:25%"></b><b style="--h:60%"></b><b style="--h:85%"></b><b style="--h:40%"></b><b style="--h:55%"></b><b style="--h:30%"></b><b style="--h:75%"></b><b style="--h:50%"></b><b style="--h:35%"></b><b style="--h:65%"></b><b style="--h:45%"></b><b style="--h:20%"></b><b style="--h:55%"></b><b style="--h:30%"></b>
+  </div>
+  <h1>Groove Salad</h1>
+  <div class="genre">ambient / electronica</div>
+  <div class="transport">
+   <button class="play" aria-label="Stop"><svg viewBox="0 0 18 18"><rect x="3" y="3" width="12" height="12" rx="1"/></svg></button>
+   <div class="vol"><svg viewBox="0 0 20 20"><path d="M3 8v4h3l4 3V5L6 8H3Zm11-1.500a5 5 0 0 1 0 7"/></svg><div class="slider"></div></div>
+   <button class="btn icon fav" aria-label="Favourite"><svg viewBox="0 0 20 20"><path d="m10 2.500 2.300 4.900 5.200.700-3.800 3.700.9 5.200L10 14.500l-4.600 2.500.9-5.200L2.500 8.100l5.200-.7L10 2.500Z"/></svg></button>
+  </div>
+ </section>
+ <section class="right">
+  <h2>Side A — today <span>Recently played</span></h2>
+  <ol>
+   <li class="live"><span class="n">A1</span><span class="t"><em>Bonobo — </em><b>Kiara</b></span><span class="tm">14:32</span><button class="on" aria-label="Unlike track"><svg viewBox="0 0 20 20"><path d="M10 16.500S3 12.400 3 7.600A3.600 3.600 0 0 1 10 6a3.600 3.600 0 0 1 7 1.600c0 4.800-7 8.900-7 8.900Z"/></svg></button></li>
+   <li><span class="n">A2</span><span class="t"><em>Thievery Corporation — </em>Lebanese Blonde</span><span class="tm">14:27</span><button class="on" aria-label="Unlike track"><svg viewBox="0 0 20 20"><path d="M10 16.500S3 12.400 3 7.600A3.600 3.600 0 0 1 10 6a3.600 3.600 0 0 1 7 1.600c0 4.800-7 8.900-7 8.900Z"/></svg></button></li>
+   <li><span class="n">A3</span><span class="t"><em>Nightmares on Wax — </em>You Wish</span><span class="tm">14:22</span><button aria-label="Like track"><svg viewBox="0 0 20 20"><path d="M10 16.500S3 12.400 3 7.600A3.600 3.600 0 0 1 10 6a3.600 3.600 0 0 1 7 1.600c0 4.800-7 8.900-7 8.900Z"/></svg></button></li>
+   <li><span class="n">A4</span><span class="t"><em>Tycho — </em>Awake</span><span class="tm">14:16</span><button aria-label="Like track"><svg viewBox="0 0 20 20"><path d="M10 16.500S3 12.400 3 7.600A3.600 3.600 0 0 1 10 6a3.600 3.600 0 0 1 7 1.600c0 4.800-7 8.900-7 8.900Z"/></svg></button></li>
+   <li><span class="n">A5</span><span class="t"><em>Boards of Canada — </em>Roygbiv</span><span class="tm">14:10</span><button aria-label="Like track"><svg viewBox="0 0 20 20"><path d="M10 16.500S3 12.400 3 7.600A3.600 3.600 0 0 1 10 6a3.600 3.600 0 0 1 7 1.600c0 4.800-7 8.900-7 8.900Z"/></svg></button></li>
+   <li><span class="n">A6</span><span class="t"><em>Zero 7 — </em>In the Waiting Line</span><span class="tm">14:04</span><button aria-label="Like track"><svg viewBox="0 0 20 20"><path d="M10 16.500S3 12.400 3 7.600A3.600 3.600 0 0 1 10 6a3.600 3.600 0 0 1 7 1.600c0 4.800-7 8.900-7 8.900Z"/></svg></button></li>
+   <li><span class="n">A7</span><span class="t"><em>Kruder &amp; Dorfmeister — </em>High Noon</span><span class="tm">13:57</span><button aria-label="Like track"><svg viewBox="0 0 20 20"><path d="M10 16.500S3 12.400 3 7.600A3.600 3.600 0 0 1 10 6a3.600 3.600 0 0 1 7 1.600c0 4.800-7 8.900-7 8.900Z"/></svg></button></li>
+   <li><span class="n">A8</span><span class="t"><em>Lemon Jelly — </em>Nice Weather for Ducks</span><span class="tm">13:51</span><button aria-label="Like track"><svg viewBox="0 0 20 20"><path d="M10 16.500S3 12.400 3 7.600A3.600 3.600 0 0 1 10 6a3.600 3.600 0 0 1 7 1.600c0 4.800-7 8.900-7 8.900Z"/></svg></button></li>
+  </ol>
+  <div class="credits">
+   <h3>Liner notes</h3>
+   <p>A nicely chilled plate of ambient/downtempo beats and grooves.</p>
+   <p><b>ambient / electronica</b> · <b>1,284 listening</b></p>
+   <p>Listener-supported · somafm.com</p>
+  </div>
+ </section>
+</main>
+<footer class="bar">
+ <div class="thumb"><i style="left:0;top:0;width:24px;height:24px;background:#9c9086"></i><i style="left:16px;top:12px;width:24px;height:28px;background:#231d19"></i><i style="left:6px;top:20px;width:20px;height:20px;border-radius:50%;background:#efe6d8"></i></div>
+ <div class="who"><b>Groove Salad</b><span>ambient / electronica</span></div>
+ <div class="trk">Bonobo <em>— Kiara</em></div>
+ <span class="badge">Playing</span>
+ <button class="stop" aria-label="Stop"><svg viewBox="0 0 12 12"><rect x="1" y="1" width="10" height="10" rx="1"/></svg></button>
+</footer>
+</body></html>

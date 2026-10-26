@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Player - The category standard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#121212;--raise:#1e1e1e;--ctl:#2a2a2a;--tx:#f5f5f5;--tx2:#a3a3a3;--ac:#3b82f6}
+body{width:1024px;height:680px;overflow:hidden;background:var(--bg);color:var(--tx);font:400 14px/1.4 Inter,system-ui,sans-serif;position:relative}
+.side{position:absolute;left:0;top:0;bottom:64px;width:208px;background:#0e0e0e;padding:24px 16px}
+.brand{font-weight:700;font-size:16px;padding:0 8px 24px}
+.nav a{display:flex;align-items:center;gap:12px;height:40px;padding:0 8px;border-radius:8px;color:var(--tx2);font-weight:500}
+.nav a.on{background:var(--ctl);color:var(--tx)}
+.ico{width:16px;height:16px;border-radius:4px;border:2px solid currentColor}
+h6{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx2);padding:32px 8px 8px}
+.fav{display:flex;align-items:center;gap:12px;height:40px;padding:0 8px;border-radius:8px;color:var(--tx2)}
+.fav:hover{background:var(--raise)}
+.t{border-radius:4px;flex:none}
+.main{position:absolute;left:208px;right:0;top:0;bottom:64px;padding:32px 40px;overflow:hidden;background:linear-gradient(#1b2a44 0,var(--bg) 280px)}
+.hero{display:flex;gap:32px;align-items:flex-end}
+.art{width:280px;height:280px;border-radius:8px;flex:none;box-shadow:0 8px 24px rgba(0,0,0,.5);background:radial-gradient(circle at 25% 20%,#8fd6c8,transparent 55%),linear-gradient(135deg,#2f6f8f,#2b3a67 55%,#1b2145)}
+.eyebrow{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+h1{font-size:64px;line-height:1.05;font-weight:800;letter-spacing:-.03em;margin:8px 0 16px}
+.meta{color:var(--tx2);font-weight:500}
+.desc{color:var(--tx2);margin:8px 0 24px;max-width:440px}
+.act{display:flex;align-items:center;gap:20px}
+.play{width:56px;height:56px;border-radius:50%;background:var(--ac);display:grid;place-items:center}
+.play i{border-left:18px solid #fff;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:4px}
+.heart{width:24px;height:24px;color:var(--tx2);font-size:24px;line-height:24px}
+.vol{display:flex;align-items:center;gap:8px;margin-left:auto;color:var(--tx2)}
+.bar{width:96px;height:4px;border-radius:2px;background:var(--ctl);position:relative}
+.bar b{position:absolute;left:0;top:0;bottom:0;width:70%;border-radius:2px;background:var(--tx)}
+h2{font-size:20px;font-weight:700;margin:32px 0 8px}
+.row{display:grid;grid-template-columns:32px 40px 1fr 64px 32px;align-items:center;gap:16px;height:56px;padding:0 16px;border-radius:8px}
+.row:hover{background:rgba(255,255,255,.07)}
+.row .n{color:var(--tx2);text-align:center}
+.row.cur .n,.row.cur .ti{color:var(--ac)}
+.ti{font-weight:500}.ar{color:var(--tx2);font-size:13px}
+.tm{color:var(--tx2);text-align:right;font-variant-numeric:tabular-nums}
+.row .h{color:var(--tx2);opacity:0;font-size:18px}
+.row:hover .h{opacity:1}
+.np{position:absolute;left:0;right:0;bottom:0;height:64px;background:var(--raise);border-top:1px solid #2a2a2a;display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;padding:0 16px}
+.l{display:flex;align-items:center;gap:12px}
+.c{display:flex;flex-direction:column;align-items:center;gap:4px}
+.tr{display:flex;align-items:center;gap:24px;color:var(--tx2)}
+.pb{width:36px;height:36px;border-radius:50%;background:var(--tx);display:grid;place-items:center}
+.pb i{width:4px;height:14px;background:#121212;box-shadow:8px 0 #121212;margin-right:8px}
+.live{font-size:11px;font-weight:600;color:var(--ac);letter-spacing:.06em}
+.r{display:flex;justify-content:flex-end}
+</style></head><body>
+<aside class="side"><div class="brand">SomaFM Player</div>
+<nav class="nav"><a class="on"><span class="ico"></span>Stations</a><a><span class="ico"></span>Liked</a><a><span class="ico"></span>Settings</a></nav>
+<h6>Favourites</h6>
+<div class="fav"><div class="t" style="width:32px;height:32px;background:linear-gradient(135deg,#2f6f8f,#1b2145)"></div>Groove Salad</div>
+<div class="fav"><div class="t" style="width:32px;height:32px;background:linear-gradient(135deg,#c2410c,#4c1d95)"></div>Drone Zone</div>
+<div class="fav"><div class="t" style="width:32px;height:32px;background:linear-gradient(135deg,#be185d,#1e3a8a)"></div>Secret Agent</div>
+<div class="fav"><div class="t" style="width:32px;height:32px;background:linear-gradient(135deg,#15803d,#134e4a)"></div>Deep Space One</div>
+</aside>
+<main class="main">
+<div class="hero"><div class="art"></div>
+<div style="flex:1;min-width:0"><div class="eyebrow">Station</div><h1>Groove Salad</h1>
+<div class="meta">ambient / electronica · 1,284 listening</div>
+<p class="desc">A nicely chilled plate of ambient/downtempo beats and grooves.</p>
+<div class="act"><div class="play"><i></i></div><span class="heart">♡</span>
+<div class="vol">Volume<div class="bar"><b></b></div></div></div></div></div>
+<h2>Recently played</h2>
+<div class="row cur"><span class="n">▶</span><div class="t" style="width:40px;height:40px;background:linear-gradient(135deg,#6b8f5e,#243b4a)"></div><div><div class="ti">Kiara</div><div class="ar">Bonobo · Now playing</div></div><span class="tm">Live</span><span class="h">♡</span></div>
+<div class="row"><span class="n">2</span><div class="t" style="width:40px;height:40px;background:linear-gradient(135deg,#d97706,#7c2d12)"></div><div><div class="ti">Lebanese Blonde</div><div class="ar">Thievery Corporation</div></div><span class="tm">4 min ago</span><span class="h">♡</span></div>
+<div class="row"><span class="n">3</span><div class="t" style="width:40px;height:40px;background:linear-gradient(135deg,#7c3aed,#312e81)"></div><div><div class="ti">You Wish</div><div class="ar">Nightmares on Wax</div></div><span class="tm">9 min ago</span><span class="h">♡</span></div>
+<div class="row"><span class="n">4</span><div class="t" style="width:40px;height:40px;background:linear-gradient(135deg,#0ea5e9,#1e3a8a)"></div><div><div class="ti">Awake</div><div class="ar">Tycho</div></div><span class="tm">15 min ago</span><span class="h">♡</span></div>
+<div class="row"><span class="n">5</span><div class="t" style="width:40px;height:40px;background:linear-gradient(135deg,#65a30d,#365314)"></div><div><div class="ti">Roygbiv</div><div class="ar">Boards of Canada</div></div><span class="tm">21 min ago</span><span class="h">♡</span></div>
+</main>
+<footer class="np">
+<div class="l"><div class="t" style="width:44px;height:44px;background:linear-gradient(135deg,#2f6f8f,#1b2145)"></div><div><div style="font-weight:600">Groove Salad</div><div class="ar">Bonobo — Kiara</div></div><span style="color:var(--tx2);margin-left:8px">♡</span></div>
+<div class="c"><div class="tr"><span>⏮</span><div class="pb"><i></i></div><span>⏭</span></div><span class="live">● LIVE</span></div>
+<div class="r"><div class="vol" style="margin:0">Vol<div class="bar"><b></b></div></div></div>
+</footer>
+</body></html>

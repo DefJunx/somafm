@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Player - Cassette J-card sketch</title>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Kalam:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{--g:#141619;--r:#1f2328;--ink:#e8e6df;--s:#8b9099;--b:#3f6fd8;--au:#d9a63a}
+*{box-sizing:border-box;margin:0}
+body{width:1024px;height:680px;overflow:hidden;background:var(--g);color:var(--ink);font:15px/1.4 "Atkinson Hyperlegible",sans-serif;font-variant-numeric:tabular-nums;position:relative}
+.hand{font-family:Kalam,cursive;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+.top{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid #2a2f36}
+.top div{display:flex;gap:20px;align-items:center}
+.top button{color:var(--s);padding:8px 4px}.top button:hover{color:var(--ink)}
+.main{display:flex;gap:32px;padding:24px;height:568px}
+.left{width:300px;flex:none}
+.art{width:300px;height:300px;background:linear-gradient(135deg,#2a3f78 0 38%,#1f2328 38% 62%,#d9a63a 62% 68%,#1f2328 68%);position:relative;border-radius:4px}
+.art:after{content:"";position:absolute;left:36px;top:36px;width:110px;height:110px;border:3px solid var(--ink);border-radius:50%;opacity:.7}
+h1{font-size:30px;margin:16px 0 2px;line-height:1.1}
+.meta{color:var(--s);font-size:14px}
+.tr{display:flex;align-items:center;gap:14px;margin-top:16px}
+.play{background:var(--au);color:#141619;font-weight:700;padding:10px 22px;border-radius:4px;display:flex;gap:8px;align-items:center}
+.play:before{content:"";width:10px;height:10px;background:#141619}
+input[type=range]{flex:1;accent-color:var(--b);height:4px}
+.ib{width:36px;height:36px;border:1px solid #343a42;border-radius:4px;color:var(--s);font-size:18px}
+.ib:hover{border-color:var(--b);color:var(--ink)}
+.viz{display:flex;align-items:flex-end;gap:3px;height:44px;margin-top:18px}
+.viz i{flex:1;background:var(--b);opacity:.85;border-radius:1px}
+.panel{flex:1;background:var(--r);border-radius:4px;display:flex;overflow:hidden}
+.stripe{width:10px;flex:none;background:linear-gradient(90deg,var(--au) 0 50%,var(--b) 50%)}
+.inlay{flex:1;padding:14px 28px 0 20px}
+.head{display:flex;justify-content:space-between;align-items:baseline;height:44px}
+.head h2{font-size:26px;color:var(--ink)}.head span{color:var(--s);font-size:13px}
+ol{list-style:none;padding:0;background:repeating-linear-gradient(transparent 0 43px,rgba(63,111,216,.28) 43px 44px)}
+li{height:44px;display:flex;align-items:flex-end;padding-bottom:9px;gap:10px;position:relative}
+li b{font-weight:400;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+li em{font-style:normal;color:var(--s);font-size:14px}
+li .h{width:16px;color:var(--b);font-size:13px}
+li.live{background:rgba(217,166,58,.08)}
+li.live:before{content:"";position:absolute;left:-20px;bottom:0;width:20px;height:44px;border-left:4px solid var(--au);margin-left:-0px}
+li.live b{font-weight:700}li.live em{color:var(--au)}
+.np{position:absolute;left:0;right:0;bottom:0;height:56px;background:var(--r);border-top:1px solid #2a2f36;display:flex;align-items:center;gap:14px;padding:0 24px}
+.th{width:36px;height:36px;background:linear-gradient(135deg,#2a3f78 60%,#d9a63a 60% 70%,#1f2328 70%);border-radius:3px}
+.np .st{font-size:13px;color:var(--s)}.np .t{flex:1}
+.bd{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink)}
+.bd:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--au)}
+.stop{border:1px solid #343a42;padding:7px 16px;border-radius:4px}.stop:hover{border-color:var(--b)}
+</style></head><body>
+<header class="top"><button>&larr; Stations</button><div><button>Liked</button><button aria-label="Settings">&#9881;</button></div></header>
+<main class="main">
+<section class="left">
+<div class="art" role="img" aria-label="Station art"></div>
+<h1 class="hand">Groove Salad</h1>
+<p class="meta">Ambient / Downtempo &middot; 1,284 listening</p>
+<div class="tr"><button class="play">Stop</button><input type="range" value="70" aria-label="Volume"><button class="ib" aria-label="Favourite">&#9825;</button></div>
+<div class="viz" aria-hidden="true"><i style="height:30%"></i><i style="height:55%"></i><i style="height:80%"></i><i style="height:45%"></i><i style="height:95%"></i><i style="height:60%"></i><i style="height:35%"></i><i style="height:70%"></i><i style="height:50%"></i><i style="height:85%"></i><i style="height:40%"></i><i style="height:65%"></i><i style="height:25%"></i><i style="height:55%"></i><i style="height:75%"></i><i style="height:35%"></i></div>
+</section>
+<section class="panel"><div class="stripe"></div><div class="inlay">
+<div class="head"><h2 class="hand">Side A &mdash; today</h2><span>8 tracks</span></div>
+<ol>
+<li class="live"><span class="h">&#9829;</span><b>Bonobo &mdash; Kiara</b><em>14:32</em></li>
+<li><span class="h"></span><b>Thievery Corporation &mdash; Lebanese Blonde</b><em>14:27</em></li>
+<li><span class="h">&#9829;</span><b>Nightmares on Wax &mdash; You Wish</b><em>14:22</em></li>
+<li><span class="h"></span><b>Tycho &mdash; Awake</b><em>14:17</em></li>
+<li><span class="h"></span><b>Boards of Canada &mdash; Roygbiv</b><em>14:12</em></li>
+<li><span class="h">&#9829;</span><b>Zero 7 &mdash; In the Waiting Line</b><em>14:06</em></li>
+<li><span class="h"></span><b>Kruder &amp; Dorfmeister &mdash; High Noon</b><em>14:01</em></li>
+<li><span class="h"></span><b>Lemon Jelly &mdash; Nice Weather for Ducks</b><em>13:56</em></li>
+</ol></div></section>
+</main>
+<footer class="np"><div class="th"></div><div class="t"><div class="st">Groove Salad</div><div>Bonobo &mdash; Kiara</div></div><div class="bd">Playing</div><button class="stop">Stop</button></footer>
+</body></html>

@@ -1,0 +1,110 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Emission Line Rail</title>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bone:#e6e1d6;--dim:#8c8a85;--plate:#22242a;--hair:#33353b;--v:#8b5cff;--i:#5b6cff;--c:#33c6ff;--g:#7dff5a;--s:#ffc83a;--o:#ff7a2a;--r:#ff3b3b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:1024px;height:680px;overflow:hidden;position:relative;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(255,255,255,.013) 3px 4px),#16171a;color:var(--bone);font:400 13px/16px "Schibsted Grotesk",sans-serif;font-variant-numeric:tabular-nums}
+button{font:inherit;color:var(--bone);background:none;border:1px solid var(--hair);height:32px;padding:0 16px;border-radius:4px;letter-spacing:.04em;cursor:pointer}
+button.ic{width:32px;padding:0;display:grid;place-items:center}
+svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5}
+.top{position:absolute;inset:0 0 auto 0;height:48px;border-bottom:1px solid var(--hair);display:flex;align-items:center;gap:8px;padding:0 32px 0 24px}
+.top .brand{width:208px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;font-weight:500}
+.top .sp{flex:1} .top .act{border-color:var(--bone)}
+ul{position:absolute;left:0;top:56px;width:221px;list-style:none}
+ul::after{content:"";position:absolute;right:0;top:-8px;bottom:-24px;width:1px;background:var(--hair)}
+li{height:14px;position:relative;padding-right:24px;text-align:right;line-height:14px;color:var(--dim)}
+li::after{content:"";position:absolute;right:0;top:7px;width:12px;height:1px;background:var(--k)}
+li b{font-weight:400;letter-spacing:.02em} li em{font-style:normal;margin-left:8px;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.v{--k:var(--v)}.i{--k:var(--i)}.c{--k:var(--c)}.g{--k:var(--g)}.o{--k:var(--o)}.r{--k:var(--r)}
+li.on{color:var(--bone);font-weight:700} li.on::after{right:-36px;width:48px;height:2px;top:6px}
+li.on em{color:var(--v);font-weight:500}
+li.st::after{width:6px} li.rc::after{background:repeating-linear-gradient(90deg,var(--k) 0 3px,transparent 3px 5px)}
+li.dis{padding-right:36px} li.dis::before{content:"";position:absolute;right:-2px;top:7px;width:16px;height:1px;background:var(--dim);transform:rotate(-20deg)}
+li.dis::after{opacity:.5}
+.plate{position:absolute;left:256px;top:64px;width:736px;height:552px;background:var(--plate);border-left:2px solid var(--v);border-radius:0 4px 4px 0;padding:24px 24px 0 32px}
+.head{display:flex;gap:32px}
+.art{width:216px;height:216px;flex:none;position:relative;background:#1b1c20;border:1px solid var(--hair);overflow:hidden}
+.art s{position:absolute;left:0;right:0;height:1px;background:var(--k)}
+.art s:nth-child(1){top:48px;--k:var(--v)}.art s:nth-child(2){top:72px;--k:var(--v);left:40px}.art s:nth-child(3){top:112px;--k:var(--i);right:56px}.art s:nth-child(4){top:152px;--k:var(--c);left:72px}.art s:nth-child(5){top:184px;--k:var(--v);right:24px}
+.info{flex:1;min-width:0}
+.eyebrow{color:var(--dim);letter-spacing:.14em;text-transform:uppercase;font-weight:500;display:flex;align-items:center;gap:8px}
+.eyebrow i{display:block;width:16px;height:2px;background:var(--v)} .eyebrow span{color:var(--bone)}
+h1{font-size:40px;line-height:48px;font-weight:700;letter-spacing:-.02em;margin:8px 0}
+.meta{color:var(--dim);letter-spacing:.04em} .meta b{color:var(--bone);font-weight:500}
+.desc{font-size:16px;line-height:24px;margin:16px 0 24px;max-width:400px}
+.tr{display:flex;align-items:center;gap:16px}
+.stop{background:var(--bone);color:#16171a;border-color:var(--bone);font-weight:700;width:96px}
+.vol{flex:1;display:flex;align-items:center;gap:8px;color:var(--dim)}
+.trk{flex:1;height:2px;background:linear-gradient(90deg,var(--v) 0 62%,var(--hair) 62%);position:relative}
+.trk::after{content:"";position:absolute;left:62%;top:-5px;width:2px;height:12px;background:var(--bone)}
+.viz{display:flex;justify-content:space-between;align-items:flex-end;height:56px;margin:24px 0 16px}
+.viz i{width:1px;background:var(--v)} .viz i:nth-child(3n){opacity:.55} .viz i:nth-child(5n){opacity:.8} .viz i:nth-child(7n){opacity:.4}
+.hh{display:flex;justify-content:space-between;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;font-weight:500;height:24px;border-bottom:1px solid var(--hair)}
+.row{height:32px;display:flex;align-items:center;position:relative;padding-left:16px;color:var(--dim);border-bottom:1px solid rgba(255,255,255,.04)}
+.row span:first-child{flex:1} .row.now{color:var(--bone);font-weight:500} .row.now::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:2px;background:var(--v)}
+.row.like::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:3px;border-left:1px solid var(--s);border-right:1px solid var(--s)}
+.row svg{margin-left:16px;color:var(--s)} .row.now svg{color:var(--dim)} .row time{width:48px;text-align:right}
+.bar{position:absolute;left:0;right:0;bottom:0;height:56px;border-top:1px solid var(--hair);display:flex;align-items:center;gap:16px;padding:0 32px 0 24px;background:#16171a}
+.th{width:32px;height:32px;position:relative;background:#1b1c20;border:1px solid var(--hair)} .th s{position:absolute;left:0;right:0;top:12px;height:1px;background:var(--v)}
+.bar .np{flex:1;display:flex;gap:24px;align-items:baseline} .bar .np b{font-size:16px;font-weight:700;width:160px} .bar .np span{font-size:16px;color:var(--dim)}
+.st2{display:flex;align-items:center;gap:8px;letter-spacing:.1em;text-transform:uppercase;font-weight:500} .st2 i{width:16px;height:2px;background:var(--v)}
+</style></head><body>
+<header class="top"><span class="brand">SomaFM Player</span><button>Stations</button><button>Liked</button><span class="sp"></span><button class="ic" aria-label="Settings"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15M3 3l1.8 1.8M11.2 11.2L13 13M13 3l-1.8 1.8M4.8 11.2L3 13"/></svg></button></header>
+<ul>
+<li class="v"></li>
+<li class="i"></li>
+<li class="c"></li>
+<li class="i"></li>
+<li class="c"></li>
+<li class="c"></li>
+<li class="g"></li>
+<li class="o"></li>
+<li class="v"></li>
+<li class="v"></li>
+<li class="g"></li>
+<li class="v"><b>Drone Zone</b></li>
+<li class="r"></li>
+<li class="i st"><b>Deep Space One</b><em>stale</em></li>
+<li class="v"></li>
+<li class="c"><b>Space Station Soma</b></li>
+<li class="v"></li>
+<li class="r"><b>Dub Step Beyond</b></li>
+<li class="c"></li>
+<li class="v on"><b>Groove Salad</b><em>live</em></li>
+<li class="o"></li>
+<li class="v"><b>Lush</b></li>
+<li class="v"></li>
+<li class="c rc"><b>Fluid</b><em>reconnecting</em></li>
+<li class="c"></li>
+<li class="c"><b>Beat Blender</b></li>
+<li class="v"></li>
+<li class="g"><b>Secret Agent</b></li>
+<li class="c"></li>
+<li class="o"><b>Indie Pop Rocks!</b></li>
+<li class="o"></li>
+<li class="v dis"><em>disabled</em></li>
+<li class="i"></li>
+<li class="i"></li>
+<li class="c"></li>
+<li class="c"></li>
+<li class="v"></li>
+<li class="g"></li>
+<li class="r"></li>
+<li class="o"></li>
+</ul>
+<main class="plate"><div class="head"><div class="art"><s></s><s></s><s></s><s></s><s></s></div><div class="info">
+<div class="eyebrow"><i></i><span>Live</span> ambient</div><h1>Groove Salad</h1>
+<div class="meta">ambient / electronica &middot; <b>1,284</b> listening</div>
+<p class="desc">A nicely chilled plate of ambient/downtempo beats and grooves.</p>
+<div class="tr"><button class="stop">Stop</button><div class="vol"><svg viewBox="0 0 16 16"><path d="M2 6h3l4-3v10l-4-3H2z"/><path d="M12 5.5a3.5 3.5 0 010 5"/></svg><div class="trk"></div><span>62</span></div><button class="ic" aria-label="Favourite station"><svg viewBox="0 0 16 16"><path d="M8 14S2 10 2 6a3 3 0 016-1 3 3 0 016 1c0 4-6 8-6 8z"/></svg></button></div></div></div>
+<div class="viz"><i style="height:14px"></i><i style="height:26px"></i><i style="height:38px"></i><i style="height:22px"></i><i style="height:44px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:40px"></i><i style="height:52px"></i><i style="height:34px"></i><i style="height:24px"></i><i style="height:46px"></i><i style="height:28px"></i><i style="height:16px"></i><i style="height:36px"></i><i style="height:48px"></i><i style="height:56px"></i><i style="height:32px"></i><i style="height:20px"></i><i style="height:42px"></i><i style="height:26px"></i><i style="height:38px"></i><i style="height:50px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:44px"></i><i style="height:34px"></i><i style="height:22px"></i><i style="height:40px"></i><i style="height:28px"></i><i style="height:52px"></i><i style="height:36px"></i><i style="height:24px"></i><i style="height:46px"></i><i style="height:16px"></i><i style="height:32px"></i><i style="height:42px"></i><i style="height:20px"></i><i style="height:34px"></i><i style="height:26px"></i><i style="height:48px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:38px"></i><i style="height:22px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:20px"></i></div>
+<div class="hh"><span>Station history</span><span>Time</span></div>
+<div class="row now"><span>Bonobo &mdash; Kiara</span><button class="ic" style="border:0;width:16px;height:16px" aria-label="Like track"><svg viewBox="0 0 16 16"><path d="M8 14S2 10 2 6a3 3 0 016-1 3 3 0 016 1c0 4-6 8-6 8z"/></svg></button><time style="color:var(--bone)">14:32</time></div>
+<div class="row"><span>Thievery Corporation &mdash; Lebanese Blonde</span><time>14:27</time></div>
+<div class="row like"><span style="color:var(--bone)">Nightmares on Wax &mdash; You Wish</span><svg viewBox="0 0 16 16" style="fill:var(--s)"><path d="M8 14S2 10 2 6a3 3 0 016-1 3 3 0 016 1c0 4-6 8-6 8z"/></svg><time>14:22</time></div>
+<div class="row"><span>Tycho &mdash; Awake</span><time>14:17</time></div>
+<div class="row"><span>Boards of Canada &mdash; Roygbiv</span><time>14:12</time></div>
+<div class="row"><span>Zero 7 &mdash; In the Waiting Line</span><time>14:06</time></div>
+</main>
+<footer class="bar"><div class="th"><s></s></div><div class="np"><b>Groove Salad</b><span>Bonobo &mdash; Kiara</span></div><div class="st2"><i></i>Playing</div><button>Stop</button></footer>
+</body></html>

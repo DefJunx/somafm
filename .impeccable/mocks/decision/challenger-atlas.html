@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Star Atlas - Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Literata:ital,wght@1,300&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#0b1530;--plate:#13204a;--chalk:#eef1f7;--dim:#8d97b3;--grid:#1d2c5c;--red:#ff5a4e;--amber:#e8b45a}
+*{box-sizing:border-box;margin:0}
+body{width:1024px;height:680px;overflow:hidden;background-color:var(--ground);color:var(--chalk);font:400 14px/20px Figtree,sans-serif;font-variant-numeric:tabular-nums;
+ background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:192px 128px;background-position:-1px 7px;
+ display:flex;flex-direction:column}
+header{height:56px;flex:none;display:flex;align-items:center;gap:16px;padding:0 24px}
+h1{font:600 16px/24px Figtree;width:152px;letter-spacing:.01em}
+.search{flex:1;max-width:320px;height:36px;background:var(--plate);border:1px solid var(--grid);border-radius:8px;color:var(--dim);padding:8px 12px;font-size:14px}
+.sp{flex:1}
+.btn{height:36px;padding:0 16px;display:flex;align-items:center;gap:8px;background:var(--plate);border:1px solid var(--grid);border-radius:8px;color:var(--chalk);font:500 14px Figtree}
+.gear{width:36px;padding:0;justify-content:center;color:var(--dim);font-size:18px}
+.bar{height:48px;flex:none;display:flex;align-items:center;gap:8px;padding:0 24px}
+.chip{height:32px;padding:0 16px;border-radius:16px;display:flex;align-items:center;border:1px solid var(--grid);background:var(--ground);color:var(--dim);font-weight:500;font-size:13px}
+.chip.on{border-color:var(--amber);color:var(--amber);background:rgba(232,180,90,.1)}
+.legend{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--dim);font-size:12px}
+.legend b{font-weight:500;color:var(--chalk);margin-right:4px}
+.legend i{display:flex;align-items:center;gap:4px;font-style:normal}
+.dot{display:inline-block;border-radius:50%;background:var(--chalk);flex:none}
+.m5{width:16px;height:16px}.m4{width:12px;height:12px}.m3{width:9px;height:9px}.m2{width:6px;height:6px}.m1{width:4px;height:4px}
+.legend .dot{background:var(--dim)}
+main{flex:1;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(4,1fr);gap:8px;padding:8px 24px 16px}
+.t{position:relative;background:var(--plate);border-radius:8px;padding:12px;display:flex;flex-direction:column;border:1px solid transparent}
+.top{display:flex;align-items:center;gap:12px}
+.art{width:32px;height:32px;border-radius:4px;flex:none;background-color:var(--ground);
+ background-image:radial-gradient(circle at 24% 30%,#eef1f7 0 1px,transparent 1.5px),radial-gradient(circle at 70% 22%,#8d97b3 0 1px,transparent 1.5px),radial-gradient(circle at 48% 62%,#8d97b3 0 1px,transparent 1.5px),radial-gradient(circle at 82% 78%,#eef1f7 0 1.2px,transparent 1.7px),radial-gradient(circle at 18% 84%,#8d97b3 0 1px,transparent 1.5px)}
+.a2{background-position:3px 2px,-2px 4px,5px -3px,0 0,0 0}.a3{background-position:-4px 3px,3px -2px,-2px 5px,2px 2px,4px -1px}
+.n{font:italic 300 17px/22px Literata,serif;letter-spacing:.005em}
+.g{color:var(--dim);font-size:12px;line-height:16px;margin-top:8px}
+.mag{margin-top:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);font-weight:500}
+.mag span:first-child{width:16px;display:flex;justify-content:center}
+.t.play{border:2px solid var(--red);padding:11px}
+.t.play .dot{background:var(--red)}
+.live{margin-left:auto;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--red)}
+.t.hov{border-color:var(--amber)}
+.go{position:absolute;right:12px;bottom:12px;width:28px;height:28px;border-radius:50%;border:1px solid var(--amber);background:var(--ground)}
+.go::after{content:"";position:absolute;left:11px;top:8px;border-left:9px solid var(--amber);border-top:6px solid transparent;border-bottom:6px solid transparent}
+footer{height:56px;flex:none;background:var(--plate);border-top:1px solid var(--grid);display:flex;align-items:center;gap:16px;padding:0 24px}
+footer .art{width:40px;height:40px}
+.np{display:flex;flex-direction:column}.np small{color:var(--dim);font-size:13px;line-height:16px}
+.badge{margin-left:16px;height:24px;padding:0 12px;border:1px solid var(--red);border-radius:12px;color:var(--red);font:600 12px/22px Figtree;letter-spacing:.04em}
+.stop{height:36px;padding:0 20px;border:2px solid var(--red);border-radius:18px;color:var(--chalk);background:var(--ground);font:600 14px Figtree;display:flex;align-items:center;gap:8px}
+.stop::before{content:"";width:10px;height:10px;background:var(--red);border-radius:2px}
+</style></head><body>
+<header><h1>SomaFM Player</h1><div class="search">Filter stations</div><span class="sp"></span><div class="btn">&#9825; Liked</div><div class="btn gear">&#9881;</div></header>
+<div class="bar"><span class="chip on">All</span><span class="chip">Favourites</span><span class="chip">Ambient</span><span class="chip">Electronic</span><span class="chip">Lounge</span><span class="chip">Rock</span><span class="chip">Eclectic</span>
+ <div class="legend"><b>Listeners · magnitude</b><i><span class="dot m1"></span>&lt;300</i><i><span class="dot m2"></span>300</i><i><span class="dot m3"></span>600</i><i><span class="dot m4"></span>1,000</i><i><span class="dot m5"></span>1,500+</i></div></div>
+<main>
+<div class="t play"><div class="top"><div class="art"></div><span class="live">On air</span></div><div class="n" style="margin-top:12px">Groove Salad</div><div class="g">Ambient · Downtempo</div><div class="mag"><span><i class="dot m4"></i></span>1,284</div></div>
+<div class="t"><div class="top"><div class="art a2"></div></div><div class="n" style="margin-top:12px">Drone Zone</div><div class="g">Ambient · Space</div><div class="mag"><span><i class="dot m5"></i></span>1,950</div></div>
+<div class="t"><div class="top"><div class="art a3"></div></div><div class="n" style="margin-top:12px">Deep Space One</div><div class="g">Ambient · Experimental</div><div class="mag"><span><i class="dot m3"></i></span>812</div></div>
+<div class="t"><div class="top"><div class="art a2"></div></div><div class="n" style="margin-top:12px">Space Station Soma</div><div class="g">Electronic · Mid-tempo</div><div class="mag"><span><i class="dot m3"></i></span>640</div></div>
+<div class="t hov"><div class="top"><div class="art a3"></div></div><div class="n" style="margin-top:12px">Lush</div><div class="g">Electronic · Vocals</div><div class="mag"><span><i class="dot m3"></i></span>701</div><div class="go"></div></div>
+<div class="t"><div class="top"><div class="art"></div></div><div class="n" style="margin-top:12px">Fluid</div><div class="g">Hip-hop · Instrumental</div><div class="mag"><span><i class="dot m1"></i></span>233</div></div>
+<div class="t"><div class="top"><div class="art a2"></div></div><div class="n" style="margin-top:12px">Beat Blender</div><div class="g">Electronic · Deep house</div><div class="mag"><span><i class="dot m2"></i></span>420</div></div>
+<div class="t"><div class="top"><div class="art a3"></div></div><div class="n" style="margin-top:12px">cliqhop idm</div><div class="g">Electronic · Glitch</div><div class="mag"><span><i class="dot m1"></i></span>158</div></div>
+<div class="t"><div class="top"><div class="art"></div></div><div class="n" style="margin-top:12px">Dub Step Beyond</div><div class="g">Electronic · Dubstep</div><div class="mag"><span><i class="dot m1"></i></span>96</div></div>
+<div class="t"><div class="top"><div class="art a2"></div></div><div class="n" style="margin-top:12px">Secret Agent</div><div class="g">Lounge · Spy soundtrack</div><div class="mag"><span><i class="dot m3"></i></span>980</div></div>
+<div class="t"><div class="top"><div class="art a3"></div></div><div class="n" style="margin-top:12px">Illinois Street Lounge</div><div class="g">Lounge · Exotica</div><div class="mag"><span><i class="dot m2"></i></span>312</div></div>
+<div class="t"><div class="top"><div class="art"></div></div><div class="n" style="margin-top:12px">Bossa Beyond</div><div class="g">Lounge · Bossa nova</div><div class="mag"><span><i class="dot m1"></i></span>205</div></div>
+<div class="t"><div class="top"><div class="art a2"></div></div><div class="n" style="margin-top:12px">Indie Pop Rocks!</div><div class="g">Rock · Indie pop</div><div class="mag"><span><i class="dot m4"></i></span>1,102</div></div>
+<div class="t"><div class="top"><div class="art a3"></div></div><div class="n" style="margin-top:12px">Underground 80s</div><div class="g">Eclectic · New wave</div><div class="mag"><span><i class="dot m3"></i></span>870</div></div>
+<div class="t"><div class="top"><div class="art"></div></div><div class="n" style="margin-top:12px">Left Coast 70s</div><div class="g">Rock · Mellow</div><div class="mag"><span><i class="dot m2"></i></span>498</div></div>
+<div class="t"><div class="top"><div class="art a2"></div></div><div class="n" style="margin-top:12px">Mission Control</div><div class="g">Ambient · Space ops</div><div class="mag"><span><i class="dot m2"></i></span>377</div></div>
+<div class="t"><div class="top"><div class="art a3"></div></div><div class="n" style="margin-top:12px">Sonic Universe</div><div class="g">Eclectic · Jazz</div><div class="mag"><span><i class="dot m1"></i></span>290</div></div>
+<div class="t"><div class="top"><div class="art"></div></div><div class="n" style="margin-top:12px">Boot Liquor</div><div class="g">Rock · Americana</div><div class="mag"><span><i class="dot m2"></i></span>344</div></div>
+<div class="t"><div class="top"><div class="art a2"></div></div><div class="n" style="margin-top:12px">Folk Forward</div><div class="g">Eclectic · Indie folk</div><div class="mag"><span><i class="dot m1"></i></span>260</div></div>
+<div class="t"><div class="top"><div class="art a3"></div></div><div class="n" style="margin-top:12px">DEF CON Radio</div><div class="g">Electronic · Hacker</div><div class="mag"><span><i class="dot m5"></i></span>2,104</div></div>
+</main>
+<footer><div class="art a2"></div><div class="np"><span class="n" style="font-size:16px">Groove Salad</span><small>Bonobo — Kiara</small></div><span class="badge">Playing</span><span class="sp"></span><div class="stop">Stop</div></footer>
+</body></html>
