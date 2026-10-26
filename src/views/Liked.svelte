@@ -6,9 +6,11 @@
   import { playerStore } from "../lib/player.svelte";
   import { stationsStore } from "../lib/stations.svelte";
   import { rawText, searchLinks, splitRaw } from "../lib/tracks";
+  import { stationHueVar } from "../lib/genres";
   import { filterLiked, groupLiked } from "../lib/likedGroups";
   import Icon from "../lib/Icon.svelte";
   import NowPlayingBar from "./NowPlayingBar.svelte";
+  import TopBar from "../lib/TopBar.svelte";
 
   let { onback, onopenplayer, player = playerStore, stations = stationsStore, liked = likedStore, now = Date.now }: {
     onback?: () => void;
@@ -93,12 +95,9 @@
   const initials = (title: string) => title.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 </script>
 
+<TopBar current="liked" backLabel onstations={onback} />
 <main>
   <header bind:this={headerEl}>
-    <button class="back" aria-label="Back" onclick={() => onback?.()}>
-      <Icon name="back" />
-      <span>Back</span>
-    </button>
     <h1 tabindex="-1">Liked</h1>
     {#if liked.tracks.length > 0}
       <input
@@ -130,7 +129,7 @@
               {@const s = station(t.stationId)}
               {@const { artist, title } = splitRaw(t.raw)}
               {@const text = rawText(t.raw)}
-              <li out:collapse>
+              <li out:collapse style:--hue={stationHueVar(s)}>
                 <div class="thumb">
                   {#if s}
                     <button class="art" aria-label={`Play ${s.title}`} onclick={() => play(t.stationId)}>
@@ -155,6 +154,7 @@
                   {:else}
                     <span class="station missing">{t.stationId}</span>
                   {/if}
+                  <span class="mark" aria-hidden="true"><Icon name="heart-filled" /></span>
                   <time datetime={new Date(t.likedAt).toISOString()}>{g.timeOnly ? timeFormat.format(t.likedAt) : dayFormat.format(t.likedAt)}</time>
                 </div>
                 <div class="actions">
@@ -189,94 +189,83 @@
 <NowPlayingBar {onopenplayer} {player} {stations} {liked} />
 
 <style>
-  main { padding: 0 var(--size-4); padding-block-end: calc(var(--size-10) * 2); min-width: 0; }
+  main { max-width: 880px; padding: 0 24px; padding-block-end: calc(var(--bar-h) * 2); min-width: 0; }
   header {
-    position: sticky; top: 0; z-index: 3; background: var(--surface-base);
-    display: flex; flex-wrap: wrap; align-items: center; gap: var(--size-2) var(--size-4);
-    padding-block: var(--size-3);
+    position: sticky; top: 0; z-index: 3; background: var(--ground);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px;
+    padding: 16px 8px 16px 0; border-block-end: 1px solid var(--hairline);
   }
-  h1 { font-family: var(--font-heading); color: var(--color-heading); margin: 0; flex: 1 1 auto; }
+  h1 { flex: 1 1 auto; }
   h1:focus { outline: none; }
-  .back { display: flex; align-items: center; gap: var(--size-2); background: var(--surface-control-strong); color: var(--text-primary); }
-  .back:hover { background-color: var(--color-accent); }
-  .filter {
-    flex: 0 1 18rem; min-width: 0; box-sizing: border-box; padding: var(--size-2) var(--size-3);
-    background: var(--surface-control); color: var(--text-primary);
-    border: 1px solid var(--surface-control-strong); border-radius: var(--radius-control); font: inherit;
-  }
-  .filter::placeholder { color: var(--text-muted); }
-  .filter:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-  .muted { color: var(--text-muted); }
-  .empty { display: grid; justify-items: center; gap: var(--size-3); margin-block: var(--size-10); text-align: center; }
-  .empty p { margin: 0; }
-  .empty-title { font-family: var(--font-heading); color: var(--color-heading); font-size: var(--font-size-4); }
-  .solid, .toast button { background: var(--surface-control-strong); color: var(--text-primary); padding: var(--size-2) var(--size-4); }
-  .solid:hover, .toast button:hover { background-color: var(--color-accent); }
-  .solid:focus-visible, .toast button:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  .filter { flex: 0 1 288px; min-width: 0; }
+  .muted { color: var(--ink-dim); }
+  .empty { display: grid; justify-items: center; gap: 16px; margin-block: 80px; text-align: center; }
+  .empty-title { font-size: var(--text-md); line-height: 24px; font-weight: 700; }
 
   h2 {
-    position: sticky; top: var(--head-h, 0); z-index: 2; margin: 0; padding-block: var(--size-2);
-    background: var(--surface-base); font-family: var(--font-heading); color: var(--color-heading);
-    font-size: var(--font-size-2); font-weight: var(--font-weight-6);
+    position: sticky; top: var(--head-h, 0); z-index: 2; padding-block: 16px 8px;
+    background: var(--ground); border-block-end: 1px solid var(--hairline-soft);
   }
-  ul { list-style: none; margin: 0 0 var(--size-4); padding: 0; }
+  ul { list-style: none; margin: 0 0 16px; padding: 0; }
   li {
-    position: relative; display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto;
-    grid-template-areas: "thumb text meta"; align-items: center; gap: var(--size-3);
-    padding: var(--size-2); border-radius: var(--radius-control);
+    position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr) auto;
+    grid-template-areas: "thumb text meta"; align-items: center; gap: 16px;
+    min-height: 48px; padding: 8px 8px 8px 16px; border-block-end: 1px solid var(--hairline-soft);
   }
-  li:hover, li:focus-within { background: var(--surface-raised); }
+  li::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 1px; background: var(--hue); }
+  li:hover, li:focus-within { background: var(--plate); }
   .thumb { grid-area: thumb; }
   .art {
-    position: relative; display: block; width: 2.5rem; height: 2.5rem; padding: 0; overflow: hidden;
-    border-radius: var(--radius-control); background: var(--surface-control-strong); border: none;
+    position: relative; display: block; width: 32px; height: 32px; box-sizing: border-box; padding: 0; overflow: hidden;
+    background: var(--well); border: 1px solid var(--hairline); border-radius: 0;
   }
+  .art::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--hue); }
   button.art { cursor: pointer; }
   .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .fallback { display: grid; place-items: center; height: 100%; font-family: var(--font-heading); font-size: var(--font-size-0); color: var(--text-muted); }
+  .fallback { display: grid; place-items: center; height: 100%; font-size: var(--text-sm); color: var(--ink-dim); }
   .overlay {
-    position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-primary);
-    background: rgb(0 0 0 / 0.55); opacity: 0; transition: opacity var(--motion-duration-fast) var(--motion-easing);
+    position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink);
+    background: var(--scrim); opacity: 0; transition: opacity var(--motion-duration-fast) var(--motion-easing);
   }
   li:hover .overlay, .art:focus-visible .overlay { opacity: 1; }
-  .art:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  .art { --hue-ring: var(--hue); }
 
   .text { grid-area: text; display: grid; min-width: 0; }
   .title, .artist { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .title { font-family: var(--font-data); color: var(--text-primary); font-size: var(--font-size-1); }
-  .artist { color: var(--text-muted); font-size: var(--font-size-0); }
+  .title { color: var(--ink); font-size: var(--text-md); line-height: 24px; font-weight: 500; }
+  .artist { color: var(--ink-dim); letter-spacing: var(--track-body); }
 
-  .meta { grid-area: meta; display: flex; align-items: baseline; gap: var(--size-4); color: var(--text-muted); font-size: var(--font-size-0); min-width: 0; }
-  .station { background: none; border: none; padding: 0; color: var(--text-muted); font: inherit; cursor: pointer; max-width: 12rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  button.station:hover { color: var(--color-accent); }
-  button.station:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-  time { font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: end; }
+  .meta { grid-area: meta; display: flex; align-items: center; gap: 16px; color: var(--ink-dim); min-width: 0; }
+  .mark { color: var(--sodium); display: flex; }
+  .station { height: auto; min-height: 0; padding: 0; border: none; color: var(--ink-dim); max-width: 12rem; overflow: hidden; display: block; white-space: nowrap; text-overflow: ellipsis; }
+  button.station:not(:disabled):hover { color: var(--ink); border: none; }
+  time { min-width: 48px; text-align: end; }
 
   .actions {
-    position: absolute; inset-block: 0; inset-inline-end: 0; display: flex; align-items: center; gap: var(--size-2);
-    padding-inline: var(--size-2); background: var(--surface-raised); border-radius: var(--radius-control);
+    position: absolute; inset-block: 0; inset-inline-end: 0; display: flex; align-items: center; gap: 8px;
+    padding-inline: 8px; background: var(--plate);
     opacity: 0; pointer-events: none; transition: opacity var(--motion-duration-fast) var(--motion-easing);
   }
   li:hover .actions, li:focus-within .actions { opacity: 1; pointer-events: auto; }
-  .search { display: flex; align-items: center; gap: var(--size-1); }
-  .actions button { background: none; color: var(--text-muted); }
-  .actions button:hover { color: var(--text-primary); background-color: var(--surface-control-strong); }
-  .actions button:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-  .actions .icon { display: flex; padding: var(--size-2); font-size: var(--font-size-2); }
-  .actions .text { padding: var(--size-1) var(--size-2); font-size: var(--font-size-0); }
+  .search { display: flex; align-items: center; gap: 4px; }
+  .actions button { color: var(--ink-dim); border-color: transparent; }
+  .actions button:not(:disabled):hover { color: var(--ink); border-color: var(--hairline); }
+  .actions .icon { width: 32px; padding: 0; }
+  .actions .text { padding: 0 8px; }
 
   @media (hover: none), (max-width: 36rem) {
-    li { grid-template-areas: "thumb text meta" ". actions actions"; row-gap: var(--size-1); }
-    .actions { position: static; grid-area: actions; opacity: 1; pointer-events: auto; background: none; padding: 0; flex-wrap: wrap; }
+    li { grid-template-areas: "thumb text meta" ". actions actions"; row-gap: 4px; }
+    .actions { position: static; grid-area: actions; margin-inline-start: -8px; opacity: 1; pointer-events: auto; background: none; padding: 0; flex-wrap: wrap; }
     li:hover, li:focus-within { background: none; }
+    .station { max-width: 8rem; }
+    main { padding: 0 16px; padding-block-end: calc(var(--bar-h) * 2); }
   }
 
   .toast {
-    position: fixed; z-index: 5; inset-inline: var(--size-4); inset-block-end: calc(var(--size-10) + var(--size-4));
-    margin-inline: auto; width: fit-content; max-width: calc(100% - 2 * var(--size-4));
-    display: flex; align-items: center; gap: var(--size-4); padding: var(--size-2) var(--size-3);
-    background: var(--surface-raised); border: 1px solid var(--surface-control-strong); border-radius: var(--radius-control);
+    position: fixed; z-index: 5; inset-inline: 16px; inset-block-end: calc(var(--bar-h) + 16px);
+    margin-inline: auto; width: fit-content; max-width: calc(100% - 32px);
+    display: flex; align-items: center; gap: 16px; padding: 8px 8px 8px 16px;
+    background: var(--plate); border: 1px solid var(--hairline); border-radius: var(--radius);
   }
   .toast span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 </style>

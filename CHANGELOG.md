@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-26
+
+### Added
+
+- Tuning rail on the Player screen: every Station is listed as a line in its genre colour, and you can switch Station straight from it. The playing Station's line reaches into the player and says whether it is live or reconnecting.
+- Top bar with Stations, Liked and Settings, available on every screen.
+
+### Changed
+
+- New look across the whole app: a charcoal background with fine lines, and one colour per genre used the same way on the Grid, Player screen, Liked view and Now playing bar.
+- Playback state is shown by the shape of a Station's line plus a plain word (live, reconnecting, error), never by colour alone. Liked tracks are marked in yellow.
+- The Visualizer now draws thin lines in the playing Station's colour.
+- New tracks slide into Station history from the top. This is turned off when your system asks for reduced motion.
+- The app now uses the Schibsted Grotesk typeface, bundled with the app.
+- Favourite Stations are marked with a star.
+
 ## [0.3.0] - 2026-10-21
 
 ### Added
@@ -63,7 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tray menu refresh no longer deadlocks the main thread.
 - Now-playing bar no longer scrolls away after a view transition.
 
-[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/DefJunx/somafm/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/DefJunx/somafm/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/DefJunx/somafm/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/DefJunx/somafm/compare/v0.1.0...v0.1.1

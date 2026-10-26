@@ -1,0 +1,387 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-26T00:00:00Z",
+  "title": "Design System: SomaFM Player",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Charcoal Continuum",
+        "canonical": "#16171a",
+        "tonalRamp": [
+          "oklch(15% 0.01 270)",
+          "oklch(25% 0.01 270)",
+          "oklch(35% 0.01 270)",
+          "oklch(45% 0.01 270)",
+          "oklch(60% 0.01 270)",
+          "oklch(75% 0.01 270)",
+          "oklch(85% 0.01 270)",
+          "oklch(95% 0.01 270)"
+        ]
+      },
+      "plate": {
+        "role": "neutral",
+        "displayName": "Plate",
+        "canonical": "#22242a",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(25% 0.012 270)",
+          "oklch(35% 0.012 270)",
+          "oklch(45% 0.012 270)",
+          "oklch(60% 0.012 270)",
+          "oklch(75% 0.012 270)",
+          "oklch(85% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "well": {
+        "role": "neutral",
+        "displayName": "Well",
+        "canonical": "#1b1c20",
+        "tonalRamp": [
+          "oklch(15% 0.01 270)",
+          "oklch(25% 0.01 270)",
+          "oklch(35% 0.01 270)",
+          "oklch(45% 0.01 270)",
+          "oklch(60% 0.01 270)",
+          "oklch(75% 0.01 270)",
+          "oklch(85% 0.01 270)",
+          "oklch(95% 0.01 270)"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#33353b",
+        "tonalRamp": [
+          "oklch(15% 0.012 270)",
+          "oklch(25% 0.012 270)",
+          "oklch(35% 0.012 270)",
+          "oklch(45% 0.012 270)",
+          "oklch(60% 0.012 270)",
+          "oklch(75% 0.012 270)",
+          "oklch(85% 0.012 270)",
+          "oklch(95% 0.012 270)"
+        ]
+      },
+      "bone": {
+        "role": "primary",
+        "displayName": "Bone",
+        "canonical": "#e6e1d6",
+        "tonalRamp": [
+          "oklch(15% 0.015 90)",
+          "oklch(25% 0.015 90)",
+          "oklch(35% 0.015 90)",
+          "oklch(45% 0.015 90)",
+          "oklch(60% 0.015 90)",
+          "oklch(75% 0.015 90)",
+          "oklch(85% 0.015 90)",
+          "oklch(95% 0.015 90)"
+        ]
+      },
+      "dim-ink": {
+        "role": "neutral",
+        "displayName": "Dim Ink",
+        "canonical": "#918f8a",
+        "tonalRamp": [
+          "oklch(15% 0.008 90)",
+          "oklch(25% 0.008 90)",
+          "oklch(35% 0.008 90)",
+          "oklch(45% 0.008 90)",
+          "oklch(60% 0.008 90)",
+          "oklch(75% 0.008 90)",
+          "oklch(85% 0.008 90)",
+          "oklch(95% 0.008 90)"
+        ]
+      },
+      "violet": {
+        "role": "secondary",
+        "displayName": "Violet",
+        "canonical": "#8b5cff",
+        "tonalRamp": [
+          "oklch(15% 0.2 290)",
+          "oklch(25% 0.2 290)",
+          "oklch(35% 0.2 290)",
+          "oklch(45% 0.2 290)",
+          "oklch(60% 0.2 290)",
+          "oklch(75% 0.2 290)",
+          "oklch(85% 0.2 290)",
+          "oklch(95% 0.2 290)"
+        ]
+      },
+      "indigo": {
+        "role": "secondary",
+        "displayName": "Indigo",
+        "canonical": "#5b6cff",
+        "tonalRamp": [
+          "oklch(15% 0.2 275)",
+          "oklch(25% 0.2 275)",
+          "oklch(35% 0.2 275)",
+          "oklch(45% 0.2 275)",
+          "oklch(60% 0.2 275)",
+          "oklch(75% 0.2 275)",
+          "oklch(85% 0.2 275)",
+          "oklch(95% 0.2 275)"
+        ]
+      },
+      "cyan": {
+        "role": "secondary",
+        "displayName": "Cyan",
+        "canonical": "#33c6ff",
+        "tonalRamp": [
+          "oklch(15% 0.2 225)",
+          "oklch(25% 0.2 225)",
+          "oklch(35% 0.2 225)",
+          "oklch(45% 0.2 225)",
+          "oklch(60% 0.2 225)",
+          "oklch(75% 0.2 225)",
+          "oklch(85% 0.2 225)",
+          "oklch(95% 0.2 225)"
+        ]
+      },
+      "green": {
+        "role": "secondary",
+        "displayName": "Signal Green",
+        "canonical": "#7dff5a",
+        "tonalRamp": [
+          "oklch(15% 0.2 145)",
+          "oklch(25% 0.2 145)",
+          "oklch(35% 0.2 145)",
+          "oklch(45% 0.2 145)",
+          "oklch(60% 0.2 145)",
+          "oklch(75% 0.2 145)",
+          "oklch(85% 0.2 145)",
+          "oklch(95% 0.2 145)"
+        ]
+      },
+      "orange": {
+        "role": "secondary",
+        "displayName": "Orange",
+        "canonical": "#ff7a2a",
+        "tonalRamp": [
+          "oklch(15% 0.2 50)",
+          "oklch(25% 0.2 50)",
+          "oklch(35% 0.2 50)",
+          "oklch(45% 0.2 50)",
+          "oklch(60% 0.2 50)",
+          "oklch(75% 0.2 50)",
+          "oklch(85% 0.2 50)",
+          "oklch(95% 0.2 50)"
+        ]
+      },
+      "red": {
+        "role": "secondary",
+        "displayName": "Deep Red",
+        "canonical": "#ff3b3b",
+        "tonalRamp": [
+          "oklch(15% 0.2 27)",
+          "oklch(25% 0.2 27)",
+          "oklch(35% 0.2 27)",
+          "oklch(45% 0.2 27)",
+          "oklch(60% 0.2 27)",
+          "oklch(75% 0.2 27)",
+          "oklch(85% 0.2 27)",
+          "oklch(95% 0.2 27)"
+        ]
+      },
+      "sodium": {
+        "role": "tertiary",
+        "displayName": "Sodium",
+        "canonical": "#ffc83a",
+        "tonalRamp": [
+          "oklch(15% 0.16 85)",
+          "oklch(25% 0.16 85)",
+          "oklch(35% 0.16 85)",
+          "oklch(45% 0.16 85)",
+          "oklch(60% 0.16 85)",
+          "oklch(75% 0.16 85)",
+          "oklch(85% 0.16 85)",
+          "oklch(95% 0.16 85)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Station name and view titles; the only 40px use."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "16px names, descriptions and track titles."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "13px tracked uppercase section heads and state words."
+      }
+    },
+    "shadows": [
+      {
+        "name": "live-bloom",
+        "value": "drop-shadow(0 0 4px color-mix(in srgb, var(--hue) 35%, transparent))",
+        "purpose": "Static bloom on live elements only: live rail line, live plate edge, Visualizer canvas."
+      }
+    ],
+    "motion": [
+      {
+        "name": "fast",
+        "value": "0.15s",
+        "purpose": "Border and colour hovers."
+      },
+      {
+        "name": "base",
+        "value": "0.3s",
+        "purpose": "Tick and hue-rule width changes."
+      },
+      {
+        "name": "easing",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "All transitions; durations go to 0 under reduced motion."
+      },
+      {
+        "name": "pulse",
+        "value": "1.4s ease-in-out infinite",
+        "purpose": "Status dot line opacity."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "720px"
+      },
+      {
+        "name": "bar-compact",
+        "value": "600px"
+      },
+      {
+        "name": "back-icon",
+        "value": "560px"
+      },
+      {
+        "name": "liked-stack",
+        "value": "36rem"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Outline control, 32px, hairline border.",
+      "html": "<button class=\"ds-btn\">Liked</button>",
+      "css": ".ds-btn{box-sizing:border-box;height:32px;padding:0 16px;border:1px solid #33353b;border-radius:4px;background:none;color:#e6e1d6;font:400 13px/16px 'Schibsted Grotesk Variable','Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em;cursor:pointer;transition:border-color .15s cubic-bezier(.25,1,.5,1)}.ds-btn:hover{border-color:#918f8a}.ds-btn:focus-visible{outline:2px solid #e6e1d6;outline-offset:2px}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Inverted bone transport action.",
+      "html": "<button class=\"ds-btn-primary\">Play</button>",
+      "css": ".ds-btn-primary{box-sizing:border-box;width:96px;height:32px;border:1px solid #e6e1d6;border-radius:4px;background:#e6e1d6;color:#16171a;font:700 13px/16px 'Schibsted Grotesk Variable','Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em;cursor:pointer}.ds-btn-primary:hover{filter:brightness(1.08)}.ds-btn-primary:focus-visible{outline:2px solid #e6e1d6;outline-offset:2px}"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Hairline field.",
+      "html": "<input class=\"ds-input\" type=\"search\" placeholder=\"Filter\">",
+      "css": ".ds-input{box-sizing:border-box;height:32px;padding:0 12px;background:none;color:#e6e1d6;border:1px solid #33353b;border-radius:4px;font:400 13px 'Schibsted Grotesk Variable','Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em}.ds-input::placeholder{color:#918f8a}.ds-input:focus-visible{outline:2px solid #e6e1d6;outline-offset:2px}"
+    },
+    {
+      "name": "Tuning Rail",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Station ticks; live Station bold with a 2px bloomed tick and state word.",
+      "html": "<nav class=\"ds-rail\"><div class=\"ds-e\" style=\"--hue:#33c6ff\">Groove Salad</div><div class=\"ds-e cur\" style=\"--hue:#8b5cff\">Drone Zone <em>live</em></div><div class=\"ds-e\" style=\"--hue:#ff7a2a\">Secret Agent</div></nav>",
+      "css": ".ds-rail{width:220px;font:400 13px/16px 'Schibsted Grotesk Variable','Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;padding:16px 0;background:#16171a}.ds-e{position:relative;height:16px;padding-right:32px;text-align:right;color:#918f8a;letter-spacing:.02em;margin-bottom:0}.ds-e::after{content:'';position:absolute;right:0;top:7px;width:20px;height:1px;background:var(--hue)}.ds-e.cur{color:#e6e1d6;font-weight:700}.ds-e.cur::after{right:-36px;width:56px;height:2px;top:6px;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--hue) 35%,transparent))}.ds-e em{font-style:normal;font-weight:500;letter-spacing:.1em;text-transform:uppercase;margin-left:8px}"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "refersTo": "button",
+      "description": "Outline chip; selected is bold with a 2px hue underline.",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"true\" style=\"--hue:#e6e1d6\">Ambient</button>",
+      "css": ".ds-chip{position:relative;box-sizing:border-box;height:32px;padding:0 16px;border:1px solid #e6e1d6;border-radius:4px;background:none;color:#e6e1d6;font:700 13px 'Schibsted Grotesk Variable','Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;letter-spacing:.04em}.ds-chip::after{content:'';position:absolute;left:8px;right:8px;bottom:3px;height:2px;background:var(--hue)}"
+    },
+    {
+      "name": "Grid Tile",
+      "kind": "card",
+      "refersTo": "tile",
+      "description": "Square well with a hue rule above; name and genre below.",
+      "html": "<div class=\"ds-tile\" style=\"--hue:#7dff5a\"><i class=\"ds-rule\"></i><div class=\"ds-art\"></div><strong>Groove Salad</strong><span>Ambient</span></div>",
+      "css": ".ds-tile{width:160px;font:400 13px/16px 'Schibsted Grotesk Variable','Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;color:#918f8a}.ds-rule{display:block;width:24px;height:2px;margin-bottom:8px;background:var(--hue)}.ds-art{aspect-ratio:1;background:#1b1c20;border:1px solid #33353b;border-radius:4px}.ds-tile:hover .ds-art{border-color:var(--hue)}.ds-tile strong{display:block;margin-top:8px;font:700 16px/24px 'Schibsted Grotesk Variable','Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;color:#e6e1d6}"
+    },
+    {
+      "name": "Liked History Row",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "History row with a doubled 1px sodium line; the live row carries a 2px hue marker.",
+      "html": "<div class=\"ds-row\" style=\"--hue:#33c6ff\">Artist - Track<span>12:04</span></div>",
+      "css": ".ds-row{position:relative;display:flex;justify-content:space-between;height:32px;align-items:center;padding-left:16px;color:#e6e1d6;font:400 13px 'Schibsted Grotesk Variable','Schibsted Grotesk',ui-sans-serif,system-ui,sans-serif;border-bottom:1px solid rgb(255 255 255/.05)}.ds-row::after{content:'';position:absolute;left:0;top:4px;bottom:4px;width:3px;background:linear-gradient(90deg,#ffc83a 0 1px,transparent 1px 2px,#ffc83a 2px 3px)}.ds-row span{color:#918f8a}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Tuning Rail",
+    "overview": "Radio as spectrum. Every Station is a line on one rail, and the line carries the Station's genre hue everywhere it appears. State is told by line form (full, dashed, short, doubled) with a plain word beside it, never by colour alone. Dark charcoal ground, one grotesque, three type sizes, 1px hairlines, 4px corners, outline buttons and a single inverted bone primary.",
+    "keyCharacteristics": [
+      "Lines, not tiles: a Station is a hue line before it is a card.",
+      "Six genre hues plus one reserved accent (sodium for Liked).",
+      "Three integer type sizes: 13 / 16 / 40.",
+      "Outline controls at a fixed 32px; one inverted bone primary.",
+      "Flat; depth by plate-on-ground tone and hairlines, with one static hue bloom on live elements."
+    ],
+    "rules": [
+      {
+        "name": "The Reserved Sodium Rule",
+        "body": "Sodium means Liked and nothing else.",
+        "section": "colors"
+      },
+      {
+        "name": "The Hue Identity Rule",
+        "body": "A Station has one hue and it is identical on every surface.",
+        "section": "colors"
+      },
+      {
+        "name": "The Not-By-Colour Rule",
+        "body": "Every hue-borne state is also carried by line form and a word.",
+        "section": "colors"
+      },
+      {
+        "name": "The Three Steps Rule",
+        "body": "Only 13, 16 and 40px exist; vary weight, tracking and ink instead.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Where Aligned Rule",
+        "body": "Tabular numerals only on times and counts that stack in a column.",
+        "section": "typography"
+      },
+      {
+        "name": "The Live-Only Bloom Rule",
+        "body": "The 35% static hue bloom marks live state and nothing else.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Flat Rule",
+        "body": "Nothing else glows, lifts or casts a shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do carry a Station's hue as --hue on its element and draw it as a line, tick, fill or ring.",
+      "Do keep every line 1px except the live 2px line.",
+      "Do pair every hue-borne state with a line form and a word.",
+      "Do reserve sodium for Liked, and use a star for favourite Station.",
+      "Do keep dim text at #918f8a or lighter on ground and plate.",
+      "Do use only 13, 16 and 40px; vary weight, tracking and ink.",
+      "Do honour reduced motion."
+    ],
+    "donts": [
+      "Don't use a uniform tile grid with a play-button accent and a separate player card.",
+      "Don't colour a Station differently between surfaces, or use sodium for anything but Liked.",
+      "Don't add shadows, gradients or glow other than the 35% static live bloom.",
+      "Don't add a second typeface or a fourth size.",
+      "Don't rely on colour alone to show state."
+    ]
+  }
+}

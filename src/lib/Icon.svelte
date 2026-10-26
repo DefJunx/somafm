@@ -3,77 +3,67 @@
 </script>
 
 {#if name === "play"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-    <polygon points="5 3 19 12 5 21" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+    <path d="M4.5 2.5v11l9-5.5z"/>
   </svg>
 {:else if name === "pause"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-    <rect x="6" y="4" width="4" height="16" />
-    <rect x="14" y="4" width="4" height="16" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+    <path d="M4 2.5h3v11H4zM9 2.5h3v11H9z"/>
   </svg>
 {:else if name === "stop"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-    <rect x="5" y="5" width="14" height="14" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+    <path d="M3.5 3.5h9v9h-9z"/>
   </svg>
 {:else if name === "star"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-    <polygon points="12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <path d="M8 1.8l1.9 4.1 4.4.5-3.3 3 .9 4.4L8 11.6l-3.9 2.2.9-4.4-3.3-3 4.4-.5z"/>
   </svg>
 {:else if name === "star-filled"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-    <polygon points="12 2 14.9 8.6 22 9.3 16.6 14 18.2 21 12 17.3 5.8 21 7.4 14 2 9.3 9.1 8.6" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+    <path d="M8 1.8l1.9 4.1 4.4.5-3.3 3 .9 4.4L8 11.6l-3.9 2.2.9-4.4-3.3-3 4.4-.5z"/>
   </svg>
 {:else if name === "heart"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-    <path d="M12 21s-8-5.2-8-11a4.6 4.6 0 0 1 8-3 4.6 4.6 0 0 1 8 3c0 5.8-8 11-8 11Z" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <path d="M8 14S2 10 2 6a3 3 0 016-1 3 3 0 016 1c0 4-6 8-6 8z"/>
   </svg>
 {:else if name === "heart-filled"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-    <path d="M12 21s-8-5.2-8-11a4.6 4.6 0 0 1 8-3 4.6 4.6 0 0 1 8 3c0 5.8-8 11-8 11Z" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true">
+    <path d="M8 14S2 10 2 6a3 3 0 016-1 3 3 0 016 1c0 4-6 8-6 8z"/>
   </svg>
 {:else if name === "back"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-    <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2" fill="none" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <path d="M10 3L5 8l5 5"/>
   </svg>
 {:else if name === "volume"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-    <polygon points="3 9 3 15 7 15 12 20 12 4 7 9" />
-    <path d="M15 7a6 6 0 0 1 0 10" stroke="currentColor" stroke-width="2" fill="none" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <path d="M2 6h3l4-3v10l-4-3H2z"/><path d="M12 5.5a3.5 3.5 0 010 5"/>
   </svg>
 {:else if name === "mute"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-    <polygon points="3 9 3 15 7 15 12 20 12 4 7 9" />
-    <line x1="23" y1="1" x2="1" y2="23" stroke="currentColor" stroke-width="2" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <path d="M2 6h3l4-3v10l-4-3H2z"/><path d="M12 6l3 4M15 6l-3 4"/>
   </svg>
 {:else if name === "copy"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-    <rect x="9" y="9" width="11" height="11" rx="2" />
-    <path d="M5 15V6a2 2 0 0 1 2-2h8" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <rect x="5.5" y="5.5" width="8" height="8"/><path d="M10.5 3.5v-1h-8v8h1"/>
   </svg>
 {:else if name === "check"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-    <path d="M5 12.5l4.5 4.5L19 7.5" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <path d="M3 8.5l3.2 3.2L13 4.8"/>
   </svg>
 {:else if name === "close"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-    <path d="M6 6l12 12M18 6L6 18" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/>
   </svg>
 {:else if name === "settings"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <circle cx="8" cy="8" r="2.5"/><path d="M8 1v2.5M8 12.5V15M1 8h2.5M12.5 8H15M3 3l1.8 1.8M11.2 11.2L13 13M13 3l-1.8 1.8M4.8 11.2L3 13"/>
   </svg>
 {:else if name === "warning"}
-  <svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-    <path d="M12 2L2 20h20Z" />
-    <circle cx="12" cy="16" r="1" fill="var(--surface-base)" />
-    <line x1="12" y1="8" x2="12" y2="14" stroke="var(--surface-base)" stroke-width="1.5" />
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">
+    <path d="M8 2L1.5 13.5h13z"/><path d="M8 6.5v3.2M8 11.4v.2"/>
   </svg>
 {/if}
 
 <style>
-  svg {
-    display: inline-block;
-    vertical-align: -0.125em;
-  }
+  svg { display: block; flex: none; }
 </style>

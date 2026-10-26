@@ -1,3 +1,4 @@
+import "@fontsource-variable/schibsted-grotesk";
 import "open-props/style";
 import "open-props/normalize";
 import "./app.css";

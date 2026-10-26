@@ -57,14 +57,11 @@
 
 <style>
   .settings { position: relative; }
-  .gear { display: flex; align-items: center; background: var(--surface-control-strong); color: var(--text-primary); }
-  .gear:not(:disabled):hover { background-color: var(--color-accent); }
+  .gear { width: var(--control-h); padding: 0; }
   .popover {
-    position: absolute; inset-inline-end: 0; inset-block-start: 100%; margin-block-start: var(--size-2); z-index: 10;
-    display: grid; gap: var(--size-3); padding: var(--size-3) var(--size-4); white-space: nowrap;
-    background: var(--surface-raised); border-radius: var(--radius-control); box-shadow: 0 4px 16px rgb(0 0 0 / 0.5);
+    position: absolute; inset-inline-end: 0; inset-block-start: 100%; margin-block-start: 8px; z-index: 10;
+    display: grid; gap: 16px; padding: 16px 24px; white-space: nowrap;
+    background: var(--plate); border: 1px solid var(--hairline); border-radius: var(--radius);
   }
-  label { display: flex; align-items: center; gap: var(--size-3); color: var(--text-primary); cursor: pointer; }
-  input { accent-color: var(--color-accent); cursor: pointer; }
-  input:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  label { display: flex; align-items: center; gap: 16px; color: var(--ink); cursor: pointer; font-size: var(--text-md); line-height: 24px; }
 </style>

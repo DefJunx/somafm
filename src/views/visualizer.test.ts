@@ -9,7 +9,7 @@ import { createSettingsStore } from "../lib/settings.svelte";
 import { station } from "../lib/fixtures";
 import type { PlayerState, SettingsView } from "../lib/api";
 
-const TEAL = "#1a9096";
+const TEAL = "#33c6ff";
 const playing: PlayerState = { ...initialPlayerState, stationId: "a", status: { kind: "playing" } };
 type Call = [string, unknown];
 
@@ -23,7 +23,7 @@ beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
   vi.spyOn(HTMLCanvasElement.prototype, "clientWidth", "get").mockReturnValue(320);
   // jsdom does not resolve custom properties through the cascade.
-  vi.spyOn(window, "getComputedStyle").mockReturnValue({ getPropertyValue: (n: string) => (n === "--color-accent" ? ` ${TEAL}` : "") } as CSSStyleDeclaration);
+  vi.spyOn(window, "getComputedStyle").mockReturnValue({ getPropertyValue: (n: string) => (n === "--hue" ? ` ${TEAL}` : "") } as CSSStyleDeclaration);
   vi.stubGlobal("devicePixelRatio", 2);
 });
 afterEach(() => {
@@ -70,10 +70,10 @@ it("deactivates when the window is hidden and reactivates when shown", async () 
   await waitFor(() => expect(activations(calls)).toEqual([true, false, true]));
 });
 
-it("draws one bar per band from a spectrum event, scaled for DPR, in the accent token", async () => {
+it("draws one 1px line per band from a spectrum event, scaled for DPR, in the Station hue", async () => {
   setup();
   await waitFor(() => expect(canvas()).not.toBeNull());
-  expect(canvas()!.height).toBe(96);
+  expect(canvas()!.height).toBe(112);
   expect(canvas()!.width).toBe(640);
   await waitFor(() => expect(ctx.fillRect).toHaveBeenCalled()); // initial flat frame
   ctx.fillRect.mockClear();
@@ -86,8 +86,8 @@ it("draws one bar per band from a spectrum event, scaled for DPR, in the accent 
   expect(ctx.fillStyle).toBe(TEAL);
   expect(ctx.setTransform).toHaveBeenCalledWith(2, 0, 0, 2, 0, 0);
   const h = ctx.fillRect.mock.calls.map((c) => c[3] as number);
-  expect(h[3]).toBeCloseTo(48);
-  expect(h[4]).toBeCloseTo(24);
+  expect(h[3]).toBeCloseTo(56);
+  expect(h[4]).toBeCloseTo(28);
   const xs = ctx.fillRect.mock.calls.map((c) => c[0] as number);
   expect(xs).toEqual([...xs].sort((a, b) => a - b));
   expect(xs[31]).toBeLessThan(320);

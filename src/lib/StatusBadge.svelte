@@ -8,24 +8,26 @@
     text?: string;
     [key: string]: unknown;
   } = $props();
+
+  const reconnecting = $derived(kind === "connecting" && label === "Reconnecting");
 </script>
 
 <span class="badge" role="group" data-status={kind} aria-label={`Status: ${label}`} {...rest}>
-  {#if kind === "error"}<Icon name="warning" />{:else}<i class="dot" class:still={kind === "stopped"}></i>{/if}<span class="text">{text}</span>
+  {#if kind === "error"}<Icon name="warning" />{:else}<i class="dot" class:still={kind === "stopped"} class:dashed={reconnecting}></i>{/if}<span class="text">{text}</span>
 </span>
 
 <style>
   .badge {
-    display: inline-flex; align-items: center; gap: var(--size-1); flex: none; max-width: 100%;
-    padding: var(--size-1) var(--size-2); border-radius: var(--radius-round);
-    background: var(--surface-control); color: var(--text-primary);
-    font-family: var(--font-data); font-size: var(--font-size-0); line-height: 1;
+    display: inline-flex; align-items: center; gap: 8px; flex: none; max-width: 100%;
+    color: var(--ink); font-size: var(--text-sm); line-height: 16px; font-weight: 500;
+    letter-spacing: var(--track-word); text-transform: uppercase;
   }
-  .badge[data-status="error"] { color: var(--color-heading); }
+  .badge[data-status="stopped"] { color: var(--ink-dim); }
   .text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
-  .dot { flex: none; display: inline-block; width: 0.6em; height: 0.6em; border-radius: 50%; background: currentColor; animation: pulse 1s ease-in-out infinite; }
-  .dot.still { animation: none; }
-  @keyframes pulse { 50% { opacity: 0.25; } }
+  .dot { flex: none; display: block; width: 16px; height: 2px; background: var(--hue); animation: pulse 1.4s ease-in-out infinite; }
+  .dot.still { animation: none; background: var(--ink-dim); }
+  .dot.dashed { background: repeating-linear-gradient(90deg, var(--hue) 0 4px, transparent 4px 7px); }
+  @keyframes pulse { 50% { opacity: 0.35; } }
   @media (prefers-reduced-motion: reduce) {
     .dot { animation: none; }
   }

@@ -33,7 +33,7 @@
 </div>
 {#if view === "player"}
   <div id="player-view" class="view">
-    <Player onback={closeToGrid} />
+    <Player onback={closeToGrid} onopenliked={openLiked} />
   </div>
 {/if}
 {#if view === "liked"}

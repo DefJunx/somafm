@@ -2,7 +2,7 @@
   import { nowPlayingText, playerStore, primaryAction, runPrimaryAction, statusLabel, statusText } from "../lib/player.svelte";
   import { stationsStore } from "../lib/stations.svelte";
   import { likedStore } from "../lib/liked.svelte";
-  import Icon from "../lib/Icon.svelte";
+  import { stationHueVar } from "../lib/genres";
   import HeartButton from "../lib/HeartButton.svelte";
   import StatusBadge from "../lib/StatusBadge.svelte";
 
@@ -13,27 +13,32 @@
     liked?: typeof likedStore;
   } = $props();
 
-  const state = $derived(player.state);
-  const station = $derived(stations.stations.find((candidate) => candidate.id === state.stationId));
-  const title = $derived(station?.title ?? state.stationId ?? "");
+  const snap = $derived(player.state);
+  const station = $derived(stations.stations.find((candidate) => candidate.id === snap.stationId));
+  const title = $derived(station?.title ?? snap.stationId ?? "");
   // The badge carries connecting and error text, so the track line only shows once playing or paused.
-  const kind = $derived(state.status.kind);
-  const line = $derived(kind === "connecting" || kind === "error" ? "" : nowPlayingText(state, title));
-  const action = $derived(primaryAction(state));
+  const kind = $derived(snap.status.kind);
+  const line = $derived(kind === "connecting" || kind === "error" ? "" : nowPlayingText(snap, title));
+  const action = $derived(primaryAction(snap));
+  const hue = $derived(stationHueVar(station));
+  let imageFailed = $state(false);
+  $effect(() => { void station?.image; imageFailed = false; });
 </script>
 
-{#if state.stationId}
-  <aside class="bar" aria-label="Now playing">
+{#if snap.stationId}
+  <aside class="bar" aria-label="Now playing" style:--hue={hue}>
     <button class="info" onclick={() => onopenplayer?.()} aria-label={`Open player for ${title}`}>
+      <span class="thumb" aria-hidden="true">
+        {#if station?.image && !imageFailed}<img src={station.image} alt="" onerror={() => (imageFailed = true)} />{/if}
+      </span>
       <strong {title}>{title}</strong>
       <span class="line" title={line}>{line}</span>
     </button>
-    {#if state.nowPlaying}
-      <HeartButton store={liked} stationId={state.stationId} raw={state.nowPlaying.raw} />
+    {#if snap.nowPlaying}
+      <HeartButton store={liked} stationId={snap.stationId} raw={snap.nowPlaying.raw} />
     {/if}
-    <StatusBadge {kind} label={statusLabel(state)} text={statusText(state) || statusLabel(state)} />
+    <StatusBadge {kind} label={statusLabel(snap)} text={statusText(snap) || statusLabel(snap)} />
     <button class:primary={action.label === "Play"} onclick={() => runPrimaryAction(player)} aria-label={action.label}>
-      <Icon name={action.label === "Stop" ? "stop" : action.label === "Play" ? "play" : "warning"} />
       <span>{action.label}</span>
     </button>
   </aside>
@@ -41,35 +46,30 @@
 
 <style>
   .bar {
-    position: fixed; inset-inline: 0; inset-block-end: 0;
-    display: flex; align-items: center; gap: var(--size-3);
-    padding: var(--size-2) var(--size-4);
-    box-sizing: border-box; max-width: 100%;
-    background: var(--surface-raised); border-block-start: 1px solid var(--surface-control);
+    position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 4;
+    display: flex; align-items: center; gap: 16px;
+    box-sizing: border-box; max-width: 100%; height: var(--bar-h); padding: 0 24px;
+    background: var(--ground); border-block-start: 1px solid var(--hairline);
   }
-  .info { flex: 1; min-width: 0; display: grid; text-align: start; background: none; border: none; cursor: pointer; padding: 0; color: inherit; transition: color var(--motion-duration-fast) var(--motion-easing); }
-  .info:hover { color: var(--color-accent); }
-  .info:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-  .info strong, .line { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .info strong { font-family: var(--font-heading); color: var(--color-heading); }
-  .line { font-family: var(--font-data); color: var(--text-muted); font-size: var(--font-size-1); min-height: 1lh; }
+  .info {
+    flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 16px; padding: 0; border: none; border-radius: 0;
+    text-align: start; color: inherit; justify-content: flex-start;
+  }
+  .info:not(:disabled):hover strong { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  .thumb { position: relative; flex: none; width: 32px; height: 32px; box-sizing: border-box; overflow: hidden; background: var(--well); border: 1px solid var(--hairline); }
+  .thumb::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--hue); }
+  .thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .info strong { flex: none; max-width: 40%; font-size: var(--text-md); line-height: 24px; font-weight: 700; color: var(--ink); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .line { flex: 1; min-width: 0; font-size: var(--text-md); line-height: 24px; color: var(--ink-dim); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; letter-spacing: 0; }
   .bar > :global(*) { min-width: 0; }
   .bar > :global(.badge) { flex: 0 1 auto; }
-  .bar button:last-child { flex-shrink: 0;
-    background: var(--surface-control-strong);
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: var(--size-2);
-    padding: var(--size-2) var(--size-3);
+  .bar > button:last-child { flex: none; min-width: 80px; }
+  @media (max-width: 720px) {
+    .bar { padding: 0 16px; gap: 8px; }
+    .info { gap: 8px; }
   }
-  .bar button:last-child:not(:disabled):hover {
-    background-color: var(--color-accent);
-  }
-  .bar button.primary { background: var(--color-primary); color: white; }
-  .bar button.primary:not(:disabled):hover { background-color: var(--color-primary); filter: brightness(1.1); }
-  .bar button:last-child:focus-visible {
-    outline: var(--focus-ring);
-    outline-offset: 2px;
+  @media (max-width: 600px) {
+    .line { display: none; }
+    .info strong { max-width: none; flex: 1; }
   }
 </style>

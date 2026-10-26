@@ -14,12 +14,9 @@
 
 <style>
   .heart {
-    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-    padding: var(--size-2); background: none; border: none; cursor: pointer;
-    color: var(--text-muted);
-    transition: color var(--motion-duration-fast) var(--motion-easing);
+    flex: none; width: 32px; height: 32px; min-height: 32px; padding: 0;
+    border-color: transparent; color: var(--ink-dim);
   }
-  .heart:hover { color: var(--color-accent); }
-  .heart.liked { color: var(--color-primary); }
-  .heart:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+  .heart:not(:disabled):hover { color: var(--ink); border-color: var(--hairline); }
+  .heart.liked, .heart.liked:not(:disabled):hover { color: var(--sodium); border-color: transparent; }
 </style>

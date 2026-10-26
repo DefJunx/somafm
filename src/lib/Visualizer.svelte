@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onSpectrum } from "./api";
 
-  let { active, playing }: { active: boolean; playing: boolean } = $props();
+  /** `hue` is a CSS colour value (a Station hue token); it lands on the canvas as `--hue`, which is what gets drawn. */
+  let { active, playing, hue = "var(--ink-dim)" }: { active: boolean; playing: boolean; hue?: string } = $props();
 
   const BANDS = 32;
-  const HEIGHT = 48; // CSS px
-  const GAP = 2;
-  const MIN_BAR = 2; // a flat strip stays visible
+  const HEIGHT = 56; // CSS px
+  const MIN_LINE = 2; // a flat strip stays visible
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let width = $state(0); // CSS px
@@ -21,10 +21,11 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, HEIGHT);
     ctx.fillStyle = color;
-    const bar = (width - GAP * (BANDS - 1)) / BANDS;
+    // One 1px emission line per band, spread edge to edge.
+    const step = (width - 1) / (BANDS - 1);
     for (let i = 0; i < BANDS; i++) {
-      const h = Math.max(MIN_BAR, Math.min(1, bands[i] ?? 0) * HEIGHT);
-      ctx.fillRect(i * (bar + GAP), HEIGHT - h, bar, h);
+      const h = Math.max(MIN_LINE, Math.min(1, bands[i] ?? 0) * HEIGHT);
+      ctx.fillRect(Math.round(i * step), HEIGHT - h, 1, h);
     }
   }
 
@@ -36,7 +37,7 @@
     const el = canvas;
     const measure = () => {
       width = el.clientWidth;
-      color = getComputedStyle(el).getPropertyValue("--color-accent").trim(); // once per resize, not per draw
+      color = getComputedStyle(el).getPropertyValue("--hue").trim(); // once per resize, not per draw
       const dpr = window.devicePixelRatio || 1;
       el.width = Math.round(width * dpr);
       el.height = Math.round(HEIGHT * dpr);
@@ -47,6 +48,16 @@
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
+  });
+
+  // A new Station hue re-reads the colour; an unchanged colour costs no draw.
+  $effect(() => {
+    void hue;
+    if (!canvas) return;
+    const next = getComputedStyle(canvas).getPropertyValue("--hue").trim();
+    if (next === color) return;
+    color = next;
+    draw(last);
   });
 
   // No draw loop: one draw per event, only while the screen is active and playing; otherwise settle flat.
@@ -63,7 +74,7 @@
   });
 </script>
 
-<canvas bind:this={canvas} style:height="{HEIGHT}px" aria-hidden="true"></canvas>
+<canvas bind:this={canvas} style:height="{HEIGHT}px" style:--hue={hue} aria-hidden="true"></canvas>
 
 <style>
   canvas { display: block; width: 100%; }
