@@ -1,11 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect width="1024" height="1024" rx="224" fill="#1b2a41"/>
-  <g stroke="#ff9f43" stroke-width="64" stroke-linecap="round">
-    <line x1="212" y1="440" x2="212" y2="584"/>
-    <line x1="336" y1="340" x2="336" y2="684"/>
-    <line x1="460" y1="230" x2="460" y2="794"/>
-    <line x1="584" y1="300" x2="584" y2="724"/>
-    <line x1="708" y1="390" x2="708" y2="634"/>
-    <line x1="812" y1="460" x2="812" y2="564"/>
-  </g>
+  <defs>
+    <pattern id="band" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="1" fill="#fff" fill-opacity="0.03"/>
+    </pattern>
+    <filter id="bloom" x="-10%" y="-200%" width="120%" height="500%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feComponentTransfer in="b" result="g"><feFuncA type="linear" slope="0.35"/></feComponentTransfer>
+      <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect x="18" y="18" width="988" height="988" rx="150" fill="#16171a"/>
+  <rect x="18" y="18" width="988" height="988" rx="150" fill="url(#band)"/>
+  <rect x="183" y="318" width="370" height="17" fill="#8b5cff"/>
+  <rect x="183" y="397" width="370" height="17" fill="#5b6cff"/>
+  <rect x="183" y="480" width="765" height="30" fill="#33c6ff" filter="url(#bloom)"/>
+  <rect x="183" y="574" width="370" height="17" fill="#7dff5a"/>
+  <rect x="183" y="652" width="370" height="17" fill="#ff7a2a"/>
+  <rect x="183" y="731" width="370" height="17" fill="#ff3b3b"/>
 </svg>
