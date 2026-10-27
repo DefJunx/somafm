@@ -488,7 +488,7 @@ it("App keeps Grid mounted and filters on return, moves focus to the Player head
   expect(document.getElementById("grid-view")?.hidden).toBe(true);
   await fireEvent.click(screen.getByRole("button", { name: "Back" }));
   await waitFor(() => expect(document.getElementById("grid-view")?.hidden).toBe(false));
-  expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+  expect(screen.getByRole("heading", { level: 1, name: "Stations" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Ambient" }).getAttribute("aria-pressed")).toBe("true");
   expect(document.activeElement).toBe(tile);
 });

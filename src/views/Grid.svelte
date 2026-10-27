@@ -64,6 +64,7 @@
       <button onclick={() => store.retry()} disabled={store.retrying}>Retry</button>
     </section>
   {:else}
+    <h1 class="sr-only">Stations</h1>
     <div class="chips" role="group" aria-label="Filter stations">
       <button class="chip" aria-pressed={selected === null && !settings.favouritesOnly} onclick={() => { genre = null; settings.setFavouritesOnly(false).catch(() => {}); }}>All</button>
       <button class="chip" aria-pressed={settings.favouritesOnly} onclick={() => settings.setFavouritesOnly(!settings.favouritesOnly).catch(() => {})}>Favourites</button>

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-10-27
+
+### Changed
+
+- Station rail targets are larger and adapt to touch input.
+- The Stations screen now has a screen-reader heading.
+
+### Fixed
+
+- The Player's Connecting button keeps its label and spacing beside the spinner at narrow window sizes.
+
 ## [0.4.2] - 2026-10-27
 
 ### Changed
@@ -92,7 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tray menu refresh no longer deadlocks the main thread.
 - Now-playing bar no longer scrolls away after a view transition.
 
-[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/DefJunx/somafm/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/DefJunx/somafm/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/DefJunx/somafm/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/DefJunx/somafm/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/DefJunx/somafm/compare/v0.3.0...v0.4.0

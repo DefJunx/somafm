@@ -135,7 +135,7 @@ Charcoal and bone with six emission hues at full strength, each used only as a l
 
 Operate-style app shell. A 48px top bar (muted tracked brand, Back or Stations, Liked, settings icon right) and a 56px fixed Now playing bar bracket every screen. The Player is a two-column grid: a 220px tuning rail plus 36px gap, then the plate; the rail runs the window height, ticks right-aligned, and the live Station's tick extends across the gap into the plate. Grid is an auto-fill grid of min 160px tiles with 24px/16px gaps; Liked is a single 880px max column with sticky header and day heads, 48px rows.
 
-Spacing rhythm is 4/8/16/24/32. Controls and history rows are 32px; rail entries 16px. Responsive: at 720px and below the rail collapses to 40px of ticks only (names appear in a plate tooltip on hover/focus, remaining in the accessible name), the brand hides and padding drops to 16px; at 600px the bar's track line hides; at 560px Back becomes icon-only. The window works down to 480 by 520.
+Spacing rhythm is 4/8/16/24/32. Controls and history rows are 32px; Station rail targets are 24px high (44px on coarse pointers) around 16px labels. Responsive: at 720px and below the rail collapses to 40px of ticks only (names appear in a plate tooltip on hover/focus, remaining in the accessible name), the brand hides and padding drops to 16px; at 600px the bar's track line hides; at 560px Back becomes icon-only. The window works down to 480 by 520.
 
 ## Elevation & Depth
 
@@ -158,7 +158,7 @@ Flat. Depth is tonal (ground, plate, well) plus 1px hairlines. There are no drop
 - **Icon button:** 32px square, no padding; ghost variants use a transparent border that shows hairline on hover.
 
 ### Tuning Rail
-Right-aligned 16px entries in dim ink with a 20px 1px hue tick; hover lifts text to bone. The loaded Station is bold bone with a 2px tick extending across the gap, bloomed, plus a state word (live, paused, connecting, reconnecting, error). Width transition 0.3s.
+Right-aligned 16px labels in dim ink sit in 24px-high Station targets (44px on coarse pointers), with a 20px 1px hue tick centered on each target; hover lifts text to bone. The loaded Station is bold bone with a 2px tick extending across the gap, bloomed, plus a state word (live, paused, connecting, reconnecting, error). Width transition 0.3s.
 
 ### Chips
 Outline buttons; selected is bold with a 2px hue underline inset 8px. Filter chips in Grid.

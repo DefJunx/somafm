@@ -202,7 +202,7 @@
   .nowrow { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; }
   .now { flex: 1; min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ink); font-weight: 500; }
   .transport { display: flex; flex-wrap: nowrap; align-items: center; gap: 16px; width: 100%; margin-block-start: 8px; }
-  .main { width: 96px; padding: 0; }
+  .main { flex: none; width: auto; min-width: 96px; padding: 0 16px; }
   .volume { flex: 1 1 auto; min-width: 96px; display: flex; align-items: center; gap: 8px; color: var(--ink-dim); }
   .volume button { flex: none; border-color: transparent; }
   .volume button:hover { color: var(--ink); }
