@@ -29,6 +29,11 @@ fn window_visible(w: &tauri::Window) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // Must be registered first: a second launch (e.g. from the start menu while
+        // the app sits in the tray) exits and brings back the existing window instead.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            tray::set_main_visible(app, true);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())

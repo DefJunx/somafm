@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-10-27
+
+### Fixed
+
+- Launching the app again (e.g. from the start menu) while it is minimized to the tray now brings back the existing window instead of opening a second instance.
+
 ## [0.4.3] - 2026-10-27
 
 ### Changed
@@ -104,6 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Now-playing bar no longer scrolls away after a view transition.
 
 [Unreleased]: https://github.com/DefJunx/somafm/compare/v0.4.3...HEAD
+[0.4.4]: https://github.com/DefJunx/somafm/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/DefJunx/somafm/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/DefJunx/somafm/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/DefJunx/somafm/compare/v0.4.0...v0.4.1
