@@ -50,23 +50,13 @@
     return () => document.removeEventListener("visibilitychange", onVisibility);
   });
 
-  // The Player screen is only mounted while visible: fetch on open, then when a new track starts. A track change
-  // while the window is hidden is fetched once on return, never on a timer.
   const nowRaw = $derived(s.nowPlaying?.raw ?? null);
   const activeId = $derived(s.stationId);
-  let loadedKey = "";
   let visible = $state(!document.hidden);
-  const fetchHistory = (id: string, raw: string | null) => {
-    loadedKey = `${id}\n${raw ?? ""}`;
-    history.load(id);
-  };
+  let historySession: ReturnType<typeof history.createSession> | undefined;
   $effect(() => {
-    const id = activeId;
-    const raw = nowRaw;
-    if (!id || !visible) return;
-    // A null Now playing (stop, reconnect) is not a new track: keep what we have unless the Station changed.
-    if (raw === null && loadedKey.startsWith(`${id}\n`)) return;
-    if (`${id}\n${raw ?? ""}` !== loadedKey) fetchHistory(id, raw);
+    historySession ??= history.createSession();
+    historySession.update(visible, activeId, nowRaw);
   });
   // Rust emits `spectrum` only while active: on while this screen is visible, off on hide and unmount (back to the Grid).
   $effect(() => {

@@ -3,6 +3,7 @@
 
 pub mod decode;
 pub mod icy;
+pub(crate) mod mirror;
 pub mod pls;
 pub mod reducer;
 pub mod shell;

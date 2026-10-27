@@ -41,6 +41,11 @@ function ipc(o: Opts) {
   }, { shouldMockEvents: true });
 }
 const historyCalls = (calls: Call[]) => calls.filter(([c]) => c === "get_station_history");
+const reducedMotion = () => {
+  const original = window.matchMedia;
+  Object.defineProperty(window, "matchMedia", { configurable: true, value: () => ({ matches: true } as MediaQueryList) });
+  return () => Object.defineProperty(window, "matchMedia", { configurable: true, value: original });
+};
 
 function renderPlayer() {
   const stores = { player: createPlayerStore(), stations: createStationsStore(), settings: createSettingsStore(), history: createHistoryStore(), liked: createLikedStore() };
@@ -207,5 +212,56 @@ it("a track change while the window is hidden is fetched once on becoming visibl
     expect(historyCalls(calls)).toHaveLength(2);
   } finally {
     Object.defineProperty(document, "hidden", { value: false, configurable: true });
+  }
+});
+
+it("refetches after Player remount and keeps a request completed in the unmounted gap", async () => {
+  const calls: Call[] = [];
+  const pending: ((entries: HistoryEntry[]) => void)[] = [];
+  ipc({ player: playing("a", np("X", "One")), calls, history: () => new Promise((resolve) => pending.push(resolve)) });
+  const stores = { player: createPlayerStore(), stations: createStationsStore(), settings: createSettingsStore(), history: createHistoryStore(), liked: createLikedStore() };
+  const restoreMatchMedia = reducedMotion();
+
+  try {
+    const first = render(Player, stores);
+    await waitFor(() => expect(historyCalls(calls)).toHaveLength(1));
+    first.unmount();
+    pending[0]([entry("X", "One")]);
+    await waitFor(() => expect(stores.history.entries).toEqual([entry("X", "One")]));
+
+    const second = render(Player, stores);
+    await waitFor(() => expect(historyCalls(calls)).toHaveLength(2));
+    expect(stores.history.entries).toEqual([entry("X", "One")]);
+    second.unmount();
+  } finally {
+    cleanup();
+    restoreMatchMedia();
+  }
+});
+
+it("ignores the prior mount's response after the remounted Player starts a request", async () => {
+  const calls: Call[] = [];
+  const pending: ((entries: HistoryEntry[]) => void)[] = [];
+  ipc({ player: playing("a", np("X", "One")), calls, history: () => new Promise((resolve) => pending.push(resolve)) });
+  const stores = { player: createPlayerStore(), stations: createStationsStore(), settings: createSettingsStore(), history: createHistoryStore(), liked: createLikedStore() };
+  const restoreMatchMedia = reducedMotion();
+
+  try {
+    const first = render(Player, stores);
+    await waitFor(() => expect(historyCalls(calls)).toHaveLength(1));
+    first.unmount();
+
+    const second = render(Player, stores);
+    await waitFor(() => expect(historyCalls(calls)).toHaveLength(2));
+    pending[0]([entry("old", "stale")]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(stores.history.entries).toEqual([]);
+
+    pending[1]([entry("new", "current")]);
+    await waitFor(() => expect(stores.history.entries).toEqual([entry("new", "current")]));
+    second.unmount();
+  } finally {
+    cleanup();
+    restoreMatchMedia();
   }
 });
